@@ -32,10 +32,11 @@
               cudaSupport = true;
             })
             fmt
-            cudatoolkit_11_5
+            cudatoolkit_11_4
+            cudnn_cudatoolkit_11_4
           ];
           shellHook = ''
-            export CUDA_PATH=${pkgs.cudaPackages.cudatoolkit_11_5}
+            export CUDA_PATH=${pkgs.cudaPackages.cudatoolkit_11_4}
             export EXTRA_LDFLAGS="-L/lib -L${pkgs.linuxPackages.nvidia_x11}/lib"
             export EXTRA_CCFLAGS="-I/usr/include"
           '';
