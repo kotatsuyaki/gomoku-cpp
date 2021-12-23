@@ -20,6 +20,7 @@
             nixpkgs-fmt
             # C++ dev
             clang_13
+            mold
             (clang-tools.override {
               llvmPackages = pkgs.llvmPackages_13;
             })
