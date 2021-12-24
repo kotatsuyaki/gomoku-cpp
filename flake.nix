@@ -20,6 +20,8 @@
             nixpkgs-fmt
             # C++ dev
             clang_13
+            lld_13
+            lldb_13
             mold
             (clang-tools.override {
               llvmPackages = pkgs.llvmPackages_13;
@@ -32,6 +34,7 @@
               cudaSupport = true;
             })
             fmt
+            boost
             cudatoolkit_11_4
             cudnn_cudatoolkit_11_4
           ];
@@ -39,6 +42,7 @@
             export CUDA_PATH=${pkgs.cudaPackages.cudatoolkit_11_4}
             export EXTRA_LDFLAGS="-L/lib -L${pkgs.linuxPackages.nvidia_x11}/lib"
             export EXTRA_CCFLAGS="-I/usr/include"
+            export LD_LIBRARY_PATH=/run/opengl-driver/lib:$LD_LIBRARY_PATH
           '';
         };
       });

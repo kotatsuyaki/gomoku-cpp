@@ -1,21 +1,19 @@
-cmake_minimum_required(VERSION 3.10 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.13 FATAL_ERROR)
 project(main)
 
 find_package(Torch REQUIRED)
 find_package(CUDA REQUIRED)
+find_package(fmt REQUIRED)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
 
-# Use mold linker if available
-find_program(MOLD mold)
-if (NOT ${MOLD} STREQUAL "MOLD-NOTFOUND")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --ld-path=${MOLD}")
-endif()
+add_executable(main src/main.cpp)
 
-add_executable(main main.cpp)
+# Link libraries
 target_link_libraries(main "${TORCH_LIBRARIES}")
 target_link_libraries(main "${CUDA_LIBRARIES}")
-# target_link_libraries(main "-Wl,--no-as-needed -ltorch_cuda")
+target_link_libraries(main fmt::fmt)
+
 set_property(TARGET main PROPERTY CXX_STANDARD 14)
 
 # For development
