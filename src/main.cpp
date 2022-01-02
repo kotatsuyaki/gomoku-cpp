@@ -111,6 +111,7 @@ void combatgame() {
     Net net{};
     torch::load(net, "net.pt");
     Mcts mcts{net};
+    net->to(torch::kCUDA);
 
     while (state.is_ended() == false) {
         auto me = state.get_next();
