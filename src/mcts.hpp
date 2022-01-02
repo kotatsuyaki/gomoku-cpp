@@ -41,6 +41,7 @@ class Mcts {
   public:
     Mcts(Net net);
     std::pair<Action, std::array<float, 36>> query(State state);
+    std::pair<Action, std::array<float, 36>> raw_query(State state);
 
   private:
     Net net;
