@@ -1,3 +1,5 @@
+#pragma once
+
 #include <torch/torch.h>
 
 namespace nn = torch::nn;

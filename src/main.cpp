@@ -1,6 +1,9 @@
+#include "mcts.hpp"
+#include "model.hpp"
+
 #include <cassert>
 #include <cstdlib>
-#include <iostream>
+#include <random>
 #include <string>
 
 #include <torch/torch.h>
@@ -9,10 +12,9 @@
 #include <fmt/core.h>
 #include <fmt/ostream.h>
 
-#include "model.hpp"
-
 const auto FGRED = fmt::fg(fmt::color::red);
 
+void randgame();
 void create_net();
 
 int main(int argc, char** argv) {
@@ -25,6 +27,8 @@ int main(int argc, char** argv) {
     if (subcmd == "create") {
         create_net();
         return EXIT_SUCCESS;
+    } else if (subcmd == "randgame") {
+        randgame();
     } else {
         fmt::print(stderr, FGRED, "unknown subcommand {}\n", subcmd);
         return EXIT_FAILURE;
@@ -43,4 +47,26 @@ void create_net() {
     fmt::print("input shape = {}\n"
                "output shape = {}\n",
                x.sizes(), output.sizes());
+}
+
+void randgame() {
+    std::random_device rd;
+    std::mt19937 gen(rd());
+
+    State state{};
+    while (state.is_ended() == false) {
+        auto actions = state.get_actions();
+        std::uniform_int_distribution<> dist(0, actions.size() - 1);
+        Action action = actions[dist(gen)];
+
+        auto me = state.next;
+        state.place(action);
+
+        fmt::print("{} placed stone at {}:\n{}\n", me, action, state);
+    }
+    if (state.winner.has_value()) {
+        fmt::print("Winner: {}\n", state.winner.value());
+    } else {
+        fmt::print("Tie\n");
+    }
 }
