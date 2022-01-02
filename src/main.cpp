@@ -14,6 +14,7 @@
 #include <fmt/ostream.h>
 
 const auto FGRED = fmt::fg(fmt::color::red);
+const auto FGGRN = fmt::fg(fmt::color::green);
 
 void randgame();
 void combatgame();
@@ -133,9 +134,6 @@ void train() {
         plays = 8;
     }
 
-    using Policy = std::array<float, 36>;
-    using Canonical = std::array<std::array<float, 6>, 6>;
-
     Net net{};
     fmt::print("Loading model and optimizer\n");
     torch::load(net, "net.pt");
@@ -213,7 +211,8 @@ void train() {
         opt.step();
 
         i += 1;
-        if (i % 100 == 0) {
+        if (i % 10 == 0) {
+            fmt::print(FGGRN, "Trained {} iterations\n", i);
             float vloss_s =
                 *static_cast<float*>(vloss.to(torch::kCPU).data_ptr());
             float ploss_s =
@@ -222,7 +221,10 @@ void train() {
                 *static_cast<float*>(loss.to(torch::kCPU).data_ptr());
             fmt::print("Loss {:.3} = {:.3} + {:.3}\n", loss_s, vloss_s,
                        ploss_s);
-            fmt::print("policy_p/t = {} , {}\n", policy_p, policy_t);
+            fmt::print("policy_p = {:.3}\n",
+                       fmt::join(policy_from_tensor(policy_p.exp()), ", "));
+            fmt::print("policy_t = {:.3}\n",
+                       fmt::join(policy_from_tensor(policy_t), ", "));
         }
     }
 

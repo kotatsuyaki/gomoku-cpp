@@ -15,6 +15,9 @@
 
 #include <torch/torch.h>
 
+using Policy = std::array<float, 36>;
+using Canonical = std::array<std::array<float, 6>, 6>;
+
 struct Node {
     Node(State state, std::optional<Action> last_action,
          std::shared_ptr<Node> parent);
@@ -42,7 +45,12 @@ class Mcts {
   private:
     Net net;
 
-    NodePtr select(NodePtr current);
+    NodePtr sample_select(NodePtr current);
+    NodePtr max_select(NodePtr current);
+    std::vector<float> children_scores(NodePtr current);
     void expand(NodePtr current);
     void evaluate(NodePtr current, Player me);
 };
+
+Policy policy_from_tensor(Tensor tensor);
+void show_iters();

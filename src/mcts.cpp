@@ -24,6 +24,9 @@ Node::Node(State state, std::optional<Action> last_action,
 
 Mcts::Mcts(Net net) : net(net) {}
 
+static const char* ITERS_S = std::getenv("ITERS");
+static int ITERS = ITERS_S ? std::atoi(ITERS_S) : 500;
+
 std::pair<Action, std::array<float, 36>> Mcts::query(State state) {
     NodePtr root = std::make_shared<Node>(state, std::nullopt);
     Player me = state.get_next();
@@ -33,7 +36,7 @@ std::pair<Action, std::array<float, 36>> Mcts::query(State state) {
 
         // select
         while (current->value.has_value()) {
-            NodePtr selected = select(current);
+            NodePtr selected = max_select(current);
             current = selected;
         }
 
@@ -48,11 +51,10 @@ std::pair<Action, std::array<float, 36>> Mcts::query(State state) {
         } else {
             auto winner = current->state.get_winner();
             if (winner.has_value()) {
-                score_update = (winner.value() == current->state.get_next())
-                                   ? 1.0f
-                                   : -1.0f;
+                score_update =
+                    (winner.value() == current->state.get_next()) ? 1.0f : 0.0f;
             } else {
-                score_update = 0.0f;
+                score_update = 0.5f;
             }
         }
 
@@ -74,8 +76,8 @@ std::pair<Action, std::array<float, 36>> Mcts::query(State state) {
     std::array<float, 36> policy{};
     for (auto child : root->children) {
         assert(child->last_action.has_value());
-        int i = child->last_action->i;
-        int j = child->last_action->j;
+        int i = child->last_action.value().i;
+        int j = child->last_action.value().j;
 
         float visits = static_cast<float>(child->visits);
         policy[i * 6 + j] = visits;
@@ -92,21 +94,11 @@ std::pair<Action, std::array<float, 36>> Mcts::query(State state) {
         }
     }
 
-#ifdef FINDMAX
-    // find max child
-    std::vector<float> scores(root->children.size(), 0.0f);
-    auto max_child = *std::max_element(
-        root->children.begin(), root->children.end(),
-        [](NodePtr& a, NodePtr& b) -> bool { return a->visits < b->visits; });
-    assert(max_child->last_action.has_value());
-#else
-    auto max_child = select(root);
-#endif
-
+    auto max_child = sample_select(root);
     return {max_child->last_action.value(), policy};
 }
 
-NodePtr Mcts::select(NodePtr current) {
+std::vector<float> Mcts::children_scores(NodePtr current) {
     assert(current->policy.has_value());
 
     std::vector<float> scores(current->children.size(), 0.0f);
@@ -127,6 +119,12 @@ NodePtr Mcts::select(NodePtr current) {
         float ucb = exploit + explore;
         scores[i] = ucb;
     }
+
+    return scores;
+}
+
+NodePtr Mcts::sample_select(NodePtr current) {
+    auto scores = children_scores(current);
 
     /* sample an index */
     // total sum
@@ -149,6 +147,13 @@ NodePtr Mcts::select(NodePtr current) {
     return current->children[idx];
 }
 
+NodePtr Mcts::max_select(NodePtr current) {
+    auto scores = children_scores(current);
+    int idx = std::max_element(scores.begin(), scores.end()) - scores.begin();
+
+    return current->children[idx];
+}
+
 void Mcts::expand(NodePtr current) {
     auto actions = current->state.get_actions();
 
@@ -156,7 +161,7 @@ void Mcts::expand(NodePtr current) {
         State to_state = current->state;
         to_state.place(action);
 
-        auto child = std::make_shared<Node>(to_state, action);
+        auto child = std::make_shared<Node>(to_state, action, current);
         current->children.push_back(child);
     }
 }
@@ -172,11 +177,18 @@ void Mcts::evaluate(NodePtr current, Player me) {
     value_t = value_t.to(torch::kCPU);
 
     float value = *static_cast<float*>(value_t.data_ptr());
-    std::array<float, 36> policy;
-    std::memcpy(policy.data(), policy_t.data_ptr(), sizeof(policy));
+    Policy policy = policy_from_tensor(policy_t);
 
     current->value = value;
     current->policy = policy;
+}
+
+Policy policy_from_tensor(Tensor tensor) {
+    Policy policy;
+    std::memcpy(policy.data(),
+                static_cast<float*>(tensor.to(torch::kCPU).data_ptr()),
+                sizeof(policy));
+    return policy;
 }
 
 std::ostream& operator<<(std::ostream& out, const Node& node) {
@@ -192,3 +204,5 @@ std::ostream& operator<<(std::ostream& out, const Node& node) {
         << ")";
     return out;
 }
+
+void show_iters() { fmt::print("Using ITERS = {}\n", ITERS); }
