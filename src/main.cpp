@@ -124,6 +124,7 @@ void combatgame() {
             state.place(action);
             fmt::print("{} placed stone at {}:\n{}\n", me, action, state);
         }
+        fmt::print("{}\n", state);
     }
     show_winner(state);
 }
