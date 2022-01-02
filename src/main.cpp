@@ -59,13 +59,13 @@ void randgame() {
         std::uniform_int_distribution<> dist(0, actions.size() - 1);
         Action action = actions[dist(gen)];
 
-        auto me = state.next;
+        auto me = state.get_next();
         state.place(action);
 
         fmt::print("{} placed stone at {}:\n{}\n", me, action, state);
     }
-    if (state.winner.has_value()) {
-        fmt::print("Winner: {}\n", state.winner.value());
+    if (state.get_winner().has_value()) {
+        fmt::print("Winner: {}\n", state.get_winner().value());
     } else {
         fmt::print("Tie\n");
     }
