@@ -18,6 +18,8 @@ class NetImpl : public nn::Module {
     nn::Conv2d conv_v;
     nn::Linear lin;
     nn::Flatten flat;
+
+    void dump(Tensor x, std::string name);
 };
 
 TORCH_MODULE(Net);

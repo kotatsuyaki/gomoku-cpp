@@ -36,80 +36,32 @@ NetImpl::NetImpl()
 }
 
 void NetImpl::dump_parameters() {
-    {
-        auto sizes = conv1->weight.sizes();
-        fmt::print("conv1 shape = {}\n", sizes);
+    dump(conv1->weight, "conv1.weight");
+    dump(conv1->bias, "conv1.bias");
+    dump(conv2->weight, "conv1.weight");
+    dump(conv2->bias, "conv1.bias");
+    dump(conv3->weight, "conv1.weight");
+    dump(conv3->bias, "conv1.bias");
+    dump(conv4->weight, "conv1.weight");
+    dump(conv4->bias, "conv1.bias");
+}
 
-        int numel =
-            std::accumulate(sizes.begin(), sizes.end(), 1, std::multiplies<>());
+void NetImpl::dump(Tensor x, std::string name) {
+    auto fname = name + ".txt";
 
-        std::ofstream file("conv1.txt");
-        for (int i = 0; i < numel; i += 1) {
-            float f = static_cast<float*>(conv1->weight.data_ptr())[i];
-            fmt::print(file, "{}\n", f);
-        }
-        file.close();
+    fmt::print("Dumping data of {} to {}\n", name, fname);
+    auto sizes = x.sizes();
+    fmt::print("{} shape = {}\n", name, sizes);
+
+    int numel =
+        std::accumulate(sizes.begin(), sizes.end(), 1, std::multiplies<>());
+
+    std::ofstream file(fname);
+    for (int i = 0; i < numel; i += 1) {
+        float f = static_cast<float*>(x.data_ptr())[i];
+        fmt::print(file, "{}\n", f);
     }
-
-    {
-        auto sizes = conv1->bias.sizes();
-        fmt::print("conv1 shape = {}\n", sizes);
-
-        int numel =
-            std::accumulate(sizes.begin(), sizes.end(), 1, std::multiplies<>());
-
-        std::ofstream file("conv1.bias.txt");
-        for (int i = 0; i < numel; i += 1) {
-            float f = static_cast<float*>(conv1->bias.data_ptr())[i];
-            fmt::print(file, "{}\n", f);
-        }
-        file.close();
-    }
-
-    {
-        auto sizes = conv2->weight.sizes();
-        fmt::print("conv2 shape = {}\n", sizes);
-
-        int numel =
-            std::accumulate(sizes.begin(), sizes.end(), 1, std::multiplies<>());
-
-        std::ofstream file("conv2.txt");
-        for (int i = 0; i < numel; i += 1) {
-            float f = static_cast<float*>(conv2->weight.data_ptr())[i];
-            fmt::print(file, "{}\n", f);
-        }
-        file.close();
-    }
-
-    {
-        auto sizes = conv3->weight.sizes();
-        fmt::print("conv3 shape = {}\n", sizes);
-
-        int numel =
-            std::accumulate(sizes.begin(), sizes.end(), 1, std::multiplies<>());
-
-        std::ofstream file("conv3.txt");
-        for (int i = 0; i < numel; i += 1) {
-            float f = static_cast<float*>(conv3->weight.data_ptr())[i];
-            fmt::print(file, "{}\n", f);
-        }
-        file.close();
-    }
-
-    {
-        auto sizes = conv4->weight.sizes();
-        fmt::print("conv4 shape = {}\n", sizes);
-
-        int numel =
-            std::accumulate(sizes.begin(), sizes.end(), 1, std::multiplies<>());
-
-        std::ofstream file("conv4.txt");
-        for (int i = 0; i < numel; i += 1) {
-            float f = static_cast<float*>(conv4->weight.data_ptr())[i];
-            fmt::print(file, "{}\n", f);
-        }
-        file.close();
-    }
+    file.close();
 }
 
 // value, policy
