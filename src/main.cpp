@@ -84,9 +84,9 @@ Action randmove(State state) {
 
 void show_winner(State state) {
     if (state.get_winner().has_value()) {
-        fmt::print("Winner: {}\n", state.get_winner().value());
+        fmt::print("\rWinner: {}\n", state.get_winner().value());
     } else {
-        fmt::print("Tie\n");
+        fmt::print("\rGame tie\n");
     }
 }
 
@@ -141,6 +141,7 @@ void train() {
     torch::load(net, "net.pt");
     torch::optim::Adam opt(net->parameters());
     torch::load(opt, "opt.pt");
+    net->to(torch::kCUDA);
 
     Mcts mcts{net};
 
@@ -153,6 +154,9 @@ void train() {
 
         State state{};
         while (state.is_ended() == false) {
+            fmt::print("\rAge: {}", state.get_age());
+            std::cout.flush();
+
             auto me = state.get_next();
             auto [action, policy] = mcts.query(state);
 
@@ -175,14 +179,19 @@ void train() {
         }
     }
 
+    fmt::print("Shuffling {} history samples\n", s_v_p_tuples.size());
     std::random_shuffle(s_v_p_tuples.begin(), s_v_p_tuples.end());
     int i = 0;
+
+    fmt::print("Training on {} history samples\n", s_v_p_tuples.size());
     for (auto [s, v, p] : s_v_p_tuples) {
         net->zero_grad();
         auto options = torch::TensorOptions().dtype(torch::kFloat32);
-        auto state_t = torch::from_blob(s.data(), {1, 1, 6, 6}, options);
-        auto value_t = torch::from_blob(&v, {1, 1}, options);
-        auto policy_t = torch::from_blob(p.data(), {1, 36}, options);
+        auto state_t =
+            torch::from_blob(s.data(), {1, 1, 6, 6}, options).to(torch::kCUDA);
+        auto value_t = torch::from_blob(&v, {1, 1}, options).to(torch::kCUDA);
+        auto policy_t =
+            torch::from_blob(p.data(), {1, 36}, options).to(torch::kCUDA);
 
         // fmt::print("s/v/p = {}, {}, {}\n", state_t, value_t, policy_t);
         auto [value_p, policy_p] = net->forward(state_t);
@@ -191,7 +200,8 @@ void train() {
         auto vloss = torch::nn::functional::mse_loss(value_p, value_t);
         auto ploss = -(policy_p * policy_t).sum(torch::kFloat32);
         auto loss = vloss + ploss;
-        if (*static_cast<bool*>((loss != loss).any().data_ptr())) {
+        if (*static_cast<bool*>(
+                (loss != loss).any().to(torch::kCPU).data_ptr())) {
             fmt::print(FGRED, "Got nan in loss (shape = {}): {}\n",
                        loss.sizes(), loss);
             assert(false);
@@ -204,9 +214,12 @@ void train() {
 
         i += 1;
         if (i % 100 == 0) {
-            float vloss_s = *static_cast<float*>(vloss.data_ptr());
-            float ploss_s = *static_cast<float*>(ploss.data_ptr());
-            float loss_s = *static_cast<float*>(loss.data_ptr());
+            float vloss_s =
+                *static_cast<float*>(vloss.to(torch::kCPU).data_ptr());
+            float ploss_s =
+                *static_cast<float*>(ploss.to(torch::kCPU).data_ptr());
+            float loss_s =
+                *static_cast<float*>(loss.to(torch::kCPU).data_ptr());
             fmt::print("Loss {:.3} = {:.3} + {:.3}\n", loss_s, vloss_s,
                        ploss_s);
             fmt::print("policy_p/t = {} , {}\n", policy_p, policy_t);

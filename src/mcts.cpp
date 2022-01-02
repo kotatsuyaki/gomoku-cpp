@@ -164,10 +164,12 @@ void Mcts::expand(NodePtr current) {
 void Mcts::evaluate(NodePtr current, Player me) {
     auto canonical = current->state.canonical();
     auto options = torch::TensorOptions().dtype(torch::kFloat32);
-    auto input = torch::from_blob(canonical.data(), {1, 1, 6, 6}, options);
+    auto input = torch::from_blob(canonical.data(), {1, 1, 6, 6}, options)
+                     .to(torch::kCUDA);
 
     auto [value_t, policy_t] = net->forward(input);
-    policy_t = policy_t.exp();
+    policy_t = policy_t.exp().to(torch::kCPU);
+    value_t = value_t.to(torch::kCPU);
 
     float value = *static_cast<float*>(value_t.data_ptr());
     std::array<float, 36> policy;
