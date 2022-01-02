@@ -249,7 +249,7 @@ void bench() {
 
     {
         auto options = torch::TensorOptions().dtype(torch::kFloat32);
-        float board[36] = {
+        Policy board{
             0, 0, 0, 0, 0,  0, //
             1, 1, 1, 1, 0,  0, //
             0, 0, 0, 0, -1, 0, //
@@ -258,7 +258,11 @@ void bench() {
             0, 0, 0, 0, -1, 0,
         };
         auto [value, policy] =
-            net->forward(torch::from_blob(board, {1, 1, 6, 6}, options));
+            net->forward(torch::from_blob(board.data(), {1, 1, 6, 6}, options));
+
+        fmt::print("Situation:\n");
+        show_policy(board);
+
         fmt::print("value:\n{}\n", value_from_tensor(value));
         fmt::print("policy:\n");
         show_policy(policy_from_tensor(policy.exp()));
@@ -266,7 +270,7 @@ void bench() {
 
     {
         auto options = torch::TensorOptions().dtype(torch::kFloat32);
-        float board[36] = {
+        Policy board{
             0,  0,  1,  0,  0, 0, //
             -1, -1, -1, -1, 0, 0, //
             0,  0,  0,  0,  0, 0, //
@@ -275,7 +279,32 @@ void bench() {
             0,  0,  0,  1,  0, 0,
         };
         auto [value, policy] =
-            net->forward(torch::from_blob(board, {1, 1, 6, 6}, options));
+            net->forward(torch::from_blob(board.data(), {1, 1, 6, 6}, options));
+
+        fmt::print("Situation:\n");
+        show_policy(board);
+
+        fmt::print("value:\n{}\n", value_from_tensor(value));
+        fmt::print("policy:\n");
+        show_policy(policy_from_tensor(policy.exp()));
+    }
+
+    {
+        auto options = torch::TensorOptions().dtype(torch::kFloat32);
+        Policy board{
+            0, 0,  1, 1, 1, 0, //
+            0, -1, 0, 0, 0, 0, //
+            0, -1, 0, 0, 0, 0, //
+            0, -1, 0, 0, 0, 0, //
+            0, 0,  0, 0, 0, 0, //
+            0, 0,  0, 0, 0, 0,
+        };
+        auto [value, policy] =
+            net->forward(torch::from_blob(board.data(), {1, 1, 6, 6}, options));
+
+        fmt::print("Situation:\n");
+        show_policy(board);
+
         fmt::print("value:\n{}\n", value_from_tensor(value));
         fmt::print("policy:\n");
         show_policy(policy_from_tensor(policy.exp()));
