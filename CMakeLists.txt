@@ -7,14 +7,14 @@ find_package(fmt REQUIRED)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
 
-add_executable(main src/main.cpp)
+add_executable(main src/main.cpp src/model.cpp)
 
 # Link libraries
 target_link_libraries(main "${TORCH_LIBRARIES}")
 target_link_libraries(main "${CUDA_LIBRARIES}")
 target_link_libraries(main fmt::fmt)
 
-set_property(TARGET main PROPERTY CXX_STANDARD 14)
+set_property(TARGET main PROPERTY CXX_STANDARD 17)
 
 # For development
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON CACHE INTERNAL "")
