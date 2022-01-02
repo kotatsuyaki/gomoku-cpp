@@ -1,11 +1,14 @@
 #include "model.hpp"
 
-#include <ATen/Functions.h>
-#include <algorithm>
-
 #include <fmt/core.h>
 #include <fmt/ostream.h>
 
+#include <algorithm>
+#include <fstream>
+#include <functional>
+#include <numeric>
+
+#include <ATen/Functions.h>
 #include <torch/nn/modules/linear.h>
 #include <torch/nn/options/conv.h>
 #include <torch/nn/options/padding.h>
@@ -30,6 +33,83 @@ NetImpl::NetImpl()
     register_module("conv_v", conv_v);
     register_module("flat", flat);
     register_module("lin", lin);
+}
+
+void NetImpl::dump_parameters() {
+    {
+        auto sizes = conv1->weight.sizes();
+        fmt::print("conv1 shape = {}\n", sizes);
+
+        int numel =
+            std::accumulate(sizes.begin(), sizes.end(), 1, std::multiplies<>());
+
+        std::ofstream file("conv1.txt");
+        for (int i = 0; i < numel; i += 1) {
+            float f = static_cast<float*>(conv1->weight.data_ptr())[i];
+            fmt::print(file, "{}\n", f);
+        }
+        file.close();
+    }
+
+    {
+        auto sizes = conv1->bias.sizes();
+        fmt::print("conv1 shape = {}\n", sizes);
+
+        int numel =
+            std::accumulate(sizes.begin(), sizes.end(), 1, std::multiplies<>());
+
+        std::ofstream file("conv1.bias.txt");
+        for (int i = 0; i < numel; i += 1) {
+            float f = static_cast<float*>(conv1->bias.data_ptr())[i];
+            fmt::print(file, "{}\n", f);
+        }
+        file.close();
+    }
+
+    {
+        auto sizes = conv2->weight.sizes();
+        fmt::print("conv2 shape = {}\n", sizes);
+
+        int numel =
+            std::accumulate(sizes.begin(), sizes.end(), 1, std::multiplies<>());
+
+        std::ofstream file("conv2.txt");
+        for (int i = 0; i < numel; i += 1) {
+            float f = static_cast<float*>(conv2->weight.data_ptr())[i];
+            fmt::print(file, "{}\n", f);
+        }
+        file.close();
+    }
+
+    {
+        auto sizes = conv3->weight.sizes();
+        fmt::print("conv3 shape = {}\n", sizes);
+
+        int numel =
+            std::accumulate(sizes.begin(), sizes.end(), 1, std::multiplies<>());
+
+        std::ofstream file("conv3.txt");
+        for (int i = 0; i < numel; i += 1) {
+            float f = static_cast<float*>(conv3->weight.data_ptr())[i];
+            fmt::print(file, "{}\n", f);
+        }
+        file.close();
+    }
+
+    {
+        auto sizes = conv4->weight.sizes();
+        fmt::print("conv4 shape = {}\n", sizes);
+
+        int numel =
+            std::accumulate(sizes.begin(), sizes.end(), 1, std::multiplies<>());
+
+        std::ofstream file("conv4.txt");
+        for (int i = 0; i < numel; i += 1) {
+            float f = static_cast<float*>(conv4->weight.data_ptr())[i];
+            fmt::print(file, "{}\n", f);
+        }
+        file.close();
+    }
 }
 
 // value, policy

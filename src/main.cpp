@@ -22,6 +22,7 @@ void create_net();
 void humangame();
 void train();
 void bench();
+void dump();
 
 int main(int argc, char** argv) {
     if (argc < 2) {
@@ -43,6 +44,8 @@ int main(int argc, char** argv) {
         bench();
     } else if (subcmd == "humangame") {
         humangame();
+    } else if (subcmd == "dump") {
+        dump();
     } else {
         fmt::print(stderr, FGRED, "unknown subcommand {}\n", subcmd);
         return EXIT_FAILURE;
@@ -338,4 +341,18 @@ void bench() {
         fmt::print("policy:\n");
         show_policy(policy_from_tensor(policy.exp()));
     }
+}
+
+void dump() {
+    // load net
+    Net net{};
+    fmt::print("Loading model and optimizer\n");
+    torch::load(net, "net.pt");
+    torch::optim::Adam opt(net->parameters());
+    torch::load(opt, "opt.pt");
+    Mcts mcts{net};
+    net->to(torch::kCPU);
+
+    fmt::print("Dumping parameters\n");
+    net->dump_parameters();
 }
