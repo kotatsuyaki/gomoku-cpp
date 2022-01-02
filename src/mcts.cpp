@@ -191,6 +191,11 @@ Policy policy_from_tensor(Tensor tensor) {
     return policy;
 }
 
+float value_from_tensor(Tensor tensor) {
+    float value = *static_cast<float*>(tensor.to(torch::kCPU).data_ptr());
+    return value;
+}
+
 std::ostream& operator<<(std::ostream& out, const Node& node) {
     out << "Node("
         << "visits = " << node.visits << ", ttlvalue = " << node.ttlvalue
@@ -206,3 +211,14 @@ std::ostream& operator<<(std::ostream& out, const Node& node) {
 }
 
 void show_iters() { fmt::print("Using ITERS = {}\n", ITERS); }
+
+void show_policy(Policy policy) {
+    for (int i = 0; i < 36; i += 1) {
+        fmt::print("{:8.2}", policy[i]);
+        if ((i + 1) % 6 == 0) {
+            fmt::print("\n");
+        } else {
+            fmt::print(", ");
+        }
+    }
+}

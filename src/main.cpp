@@ -20,6 +20,7 @@ void randgame();
 void combatgame();
 void create_net();
 void train();
+void bench();
 
 int main(int argc, char** argv) {
     if (argc < 2) {
@@ -37,6 +38,8 @@ int main(int argc, char** argv) {
         combatgame();
     } else if (subcmd == "train") {
         train();
+    } else if (subcmd == "bench") {
+        bench();
     } else {
         fmt::print(stderr, FGRED, "unknown subcommand {}\n", subcmd);
         return EXIT_FAILURE;
@@ -125,6 +128,7 @@ void combatgame() {
 }
 
 void train() {
+    // print setup info
     int plays;
     if (const char* plays_s = getenv("PLAYS")) {
         fmt::print("Using supplied plays {}\n", plays_s);
@@ -133,7 +137,9 @@ void train() {
         fmt::print("Using default plays 8\n");
         plays = 8;
     }
+    show_iters();
 
+    // load net
     Net net{};
     fmt::print("Loading model and optimizer\n");
     torch::load(net, "net.pt");
@@ -221,14 +227,55 @@ void train() {
                 *static_cast<float*>(loss.to(torch::kCPU).data_ptr());
             fmt::print("Loss {:.3} = {:.3} + {:.3}\n", loss_s, vloss_s,
                        ploss_s);
-            fmt::print("policy_p = {:.3}\n",
-                       fmt::join(policy_from_tensor(policy_p.exp()), ", "));
-            fmt::print("policy_t = {:.3}\n",
-                       fmt::join(policy_from_tensor(policy_t), ", "));
         }
     }
 
     fmt::print("Saving model and optimizer\n");
     torch::save(net, "net.pt");
     torch::save(opt, "opt.pt");
+}
+
+void bench() {
+    // load net
+    Net net{};
+    fmt::print("Loading model and optimizer\n");
+    torch::load(net, "net.pt");
+    torch::optim::Adam opt(net->parameters());
+    torch::load(opt, "opt.pt");
+    Mcts mcts{net};
+    net->to(torch::kCPU);
+
+    {
+        auto options = torch::TensorOptions().dtype(torch::kFloat32);
+        float board[36] = {
+            0, 0, 0, 0, 0,  0, //
+            1, 1, 1, 1, 0,  0, //
+            0, 0, 0, 0, -1, 0, //
+            0, 0, 0, 0, -1, 0, //
+            0, 0, 0, 0, -1, 0, //
+            0, 0, 0, 0, -1, 0,
+        };
+        auto [value, policy] =
+            net->forward(torch::from_blob(board, {1, 1, 6, 6}, options));
+        fmt::print("value:\n{}\n", value_from_tensor(value));
+        fmt::print("policy:\n");
+        show_policy(policy_from_tensor(policy.exp()));
+    }
+
+    {
+        auto options = torch::TensorOptions().dtype(torch::kFloat32);
+        float board[36] = {
+            0,  0,  1,  0,  0, 0, //
+            -1, -1, -1, -1, 0, 0, //
+            0,  0,  0,  0,  0, 0, //
+            0,  0,  0,  0,  0, 0, //
+            0,  0,  1,  0,  0, 0, //
+            0,  0,  0,  1,  0, 0,
+        };
+        auto [value, policy] =
+            net->forward(torch::from_blob(board, {1, 1, 6, 6}, options));
+        fmt::print("value:\n{}\n", value_from_tensor(value));
+        fmt::print("policy:\n");
+        show_policy(policy_from_tensor(policy.exp()));
+    }
 }

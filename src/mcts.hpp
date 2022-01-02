@@ -53,4 +53,6 @@ class Mcts {
 };
 
 Policy policy_from_tensor(Tensor tensor);
+float value_from_tensor(Tensor tensor);
+void show_policy(Policy policy);
 void show_iters();

@@ -12,3 +12,4 @@ detect_cuda_version.cc
 model.pt
 net.pt
 opt.pt
+tmp
