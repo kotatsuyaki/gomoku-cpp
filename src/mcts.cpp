@@ -3,8 +3,10 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <iterator>
 #include <limits>
 #include <memory>
+#include <random>
 
 #include <numeric>
 #include <torch/torch.h>
@@ -56,7 +58,7 @@ std::pair<Action, std::array<float, 36>> Mcts::query(State state) {
 
         // backprop
         while (true) {
-            score_update = -score_update;
+            score_update = 1.0 - score_update;
 
             current->visits += 1;
             current->ttlvalue += score_update;
@@ -90,12 +92,16 @@ std::pair<Action, std::array<float, 36>> Mcts::query(State state) {
         }
     }
 
+#ifdef FINDMAX
     // find max child
     std::vector<float> scores(root->children.size(), 0.0f);
     auto max_child = *std::max_element(
         root->children.begin(), root->children.end(),
         [](NodePtr& a, NodePtr& b) -> bool { return a->visits < b->visits; });
     assert(max_child->last_action.has_value());
+#else
+    auto max_child = select(root);
+#endif
 
     return {max_child->last_action.value(), policy};
 }
@@ -122,24 +128,25 @@ NodePtr Mcts::select(NodePtr current) {
         scores[i] = ucb;
     }
 
-    std::optional<NodePtr> selected;
-    float max_score = -std::numeric_limits<float>::max();
+    /* sample an index */
+    // total sum
+    float sum = std::accumulate(scores.begin(), scores.end(), 0.0f);
+    // prefix sum
+    std::vector<float> scores_prefix_sum{};
+    std::exclusive_scan(scores.begin(), scores.end(),
+                        std::back_inserter(scores_prefix_sum), 0.0f);
 
-    for (size_t i = 0; i < current->children.size(); i += 1) {
-        float score = scores[i];
-        if (score >= max_score) {
-            max_score = score;
-            selected = current->children[i];
-        }
-    }
+    static std::random_device rd;
+    static std::mt19937 gen(rd());
+    std::uniform_real_distribution<> dist(0.0f, sum);
+    auto it = std::upper_bound(scores_prefix_sum.begin(),
+                               scores_prefix_sum.end(), dist(gen));
+    int idx = it - scores_prefix_sum.begin() - 1;
 
-    if (selected.has_value() == false) {
-        fmt::print("scores = {}\n", fmt::join(scores, ", "));
-        for (auto& child : current->children) {
-            fmt::print("{}\n", *child.get());
-        }
-    }
-    return selected.value();
+    // not sure if it generates OOB access
+    assert(idx < 0 || idx >= current->children.size());
+
+    return current->children[idx];
 }
 
 void Mcts::expand(NodePtr current) {
@@ -160,6 +167,7 @@ void Mcts::evaluate(NodePtr current, Player me) {
     auto input = torch::from_blob(canonical.data(), {1, 1, 6, 6}, options);
 
     auto [value_t, policy_t] = net->forward(input);
+    policy_t = policy_t.exp();
 
     float value = *static_cast<float*>(value_t.data_ptr());
     std::array<float, 36> policy;

@@ -53,7 +53,7 @@ std::pair<Tensor, Tensor> NetImpl::forward(Tensor x) {
     auto value = nn::functional::pad(x, padopts);
     value = torch::relu(conv_v(value));
     value = flat(value);
-    value = torch::tanh(lin(value));
+    value = torch::sigmoid(lin(value));
 
     return {value, policy};
 }
