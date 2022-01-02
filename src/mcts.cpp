@@ -117,7 +117,7 @@ void Mcts::evaluate(NodePtr current, Player me) {
     auto options = torch::TensorOptions().dtype(torch::kFloat32);
     auto input = torch::from_blob(canonical.data(), {1, 1, 6, 6}, options);
 
-    auto [value_t, policy_t] = net.forward(input);
+    auto [value_t, policy_t] = net->forward(input);
 
     float value = *static_cast<float*>(value_t.data_ptr());
     std::array<float, 36> policy;

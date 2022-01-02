@@ -5,9 +5,9 @@
 namespace nn = torch::nn;
 using Tensor = torch::Tensor;
 
-class Net : public nn::Module {
+class NetImpl : public nn::Module {
   public:
-    Net();
+    NetImpl();
     // value, policy
     std::pair<Tensor, Tensor> forward(Tensor x);
 
@@ -17,3 +17,5 @@ class Net : public nn::Module {
     nn::Linear lin;
     nn::Flatten flat;
 };
+
+TORCH_MODULE(Net);

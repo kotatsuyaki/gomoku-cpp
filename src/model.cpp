@@ -10,7 +10,7 @@
 #include <torch/nn/options/conv.h>
 #include <torch/nn/options/padding.h>
 
-Net::Net()
+NetImpl::NetImpl()
     : conv1(
           nn::Conv2dOptions(1, 3, 3).stride(1).in_channels(1).out_channels(32)),
       conv2(nn::Conv2dOptions(1, 3, 3).stride(1).in_channels(32).out_channels(
@@ -24,10 +24,16 @@ Net::Net()
       flat(nn::Flatten()), lin(nn::LinearOptions(36, 1)) {
     flat->options.start_dim(1).end_dim(3);
     register_module("conv1", conv1);
+    register_module("conv2", conv2);
+    register_module("conv3", conv3);
+    register_module("conv4", conv4);
+    register_module("conv_v", conv_v);
+    register_module("flat", flat);
+    register_module("lin", lin);
 }
 
 // value, policy
-std::pair<Tensor, Tensor> Net::forward(Tensor x) {
+std::pair<Tensor, Tensor> NetImpl::forward(Tensor x) {
     auto padopts = torch::nn::functional::PadFuncOptions({1, 1, 1, 1});
 
     x = nn::functional::pad(x, padopts);

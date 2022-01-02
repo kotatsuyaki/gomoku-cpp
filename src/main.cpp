@@ -45,12 +45,16 @@ void create_net() {
 
     auto net = Net();
     auto x = torch::eye(6).reshape({1, 1, 6, 6}).repeat({2, 1, 1, 1});
-    auto [value, policy] = net.forward(x);
+    auto [value, policy] = net->forward(x);
 
     fmt::print("input shape = {}\n"
                "value shape = {}\n"
                "policy shape = {}",
                x.sizes(), value.sizes(), policy.sizes());
+
+    torch::save(net, "net.pt");
+
+    {}
 }
 
 Action randmove(State state) {
@@ -82,6 +86,7 @@ void randgame() {
 void combatgame() {
     State state{};
     Net net{};
+    torch::load(net, "net.pt");
     Mcts mcts{net};
 
     while (state.is_ended() == false) {
