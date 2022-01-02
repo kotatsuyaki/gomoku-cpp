@@ -19,6 +19,7 @@ const auto FGGRN = fmt::fg(fmt::color::green);
 void randgame();
 void combatgame();
 void create_net();
+void humangame();
 void train();
 void bench();
 
@@ -40,6 +41,8 @@ int main(int argc, char** argv) {
         train();
     } else if (subcmd == "bench") {
         bench();
+    } else if (subcmd == "humangame") {
+        humangame();
     } else {
         fmt::print(stderr, FGRED, "unknown subcommand {}\n", subcmd);
         return EXIT_FAILURE;
@@ -106,6 +109,33 @@ void randgame() {
     show_winner(state);
 }
 
+void humangame() {
+    State state{};
+    Net net{};
+    torch::load(net, "net.pt");
+    Mcts mcts{net};
+    net->to(torch::kCUDA);
+
+    while (state.is_ended() == false) {
+        auto me = state.get_next();
+        if (state.get_age() % 2 == 0) {
+            Action action = mcts.query(state).first;
+            state.place(action);
+
+            fmt::print("{} placed stone at {}:\n{}\n", me, action, state);
+        } else {
+            int i, j;
+            fmt::print("input i and j:\n");
+            std::cin >> i >> j;
+            Action action(i, j);
+            state.place(action);
+
+            fmt::print("{} placed stone at {}:\n{}\n", me, action, state);
+        }
+    }
+    show_winner(state);
+}
+
 void combatgame() {
     State state{};
     Net net{};
@@ -124,7 +154,6 @@ void combatgame() {
             state.place(action);
             fmt::print("{} placed stone at {}:\n{}\n", me, action, state);
         }
-        fmt::print("{}\n", state);
     }
     show_winner(state);
 }
