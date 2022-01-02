@@ -28,14 +28,16 @@ struct Node {
     std::optional<Action> last_action;
     std::shared_ptr<Node> parent;
     std::vector<std::shared_ptr<Node>> children{};
+    friend std::ostream& operator<<(std::ostream& out, const Node& node);
 };
+std::ostream& operator<<(std::ostream& out, const Node& node);
 
 using NodePtr = std::shared_ptr<Node>;
 
 class Mcts {
   public:
     Mcts(Net net);
-    Action query(State state);
+    std::pair<Action, std::array<float, 36>> query(State state);
 
   private:
     Net net;

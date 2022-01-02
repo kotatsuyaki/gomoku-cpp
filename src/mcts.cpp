@@ -6,9 +6,15 @@
 #include <limits>
 #include <memory>
 
+#include <numeric>
 #include <torch/torch.h>
 
+#include <fmt/color.h>
 #include <fmt/core.h>
+#include <fmt/format.h>
+#include <fmt/ostream.h>
+
+const auto FGRED = fmt::fg(fmt::color::red);
 
 Node::Node(State state, std::optional<Action> last_action,
            std::shared_ptr<Node> parent = nullptr)
@@ -16,7 +22,7 @@ Node::Node(State state, std::optional<Action> last_action,
 
 Mcts::Mcts(Net net) : net(net) {}
 
-Action Mcts::query(State state) {
+std::pair<Action, std::array<float, 36>> Mcts::query(State state) {
     NodePtr root = std::make_shared<Node>(state, std::nullopt);
     Player me = state.get_next();
 
@@ -24,7 +30,7 @@ Action Mcts::query(State state) {
         NodePtr current = root;
 
         // select
-        while (current->children.empty() == false) {
+        while (current->value.has_value()) {
             NodePtr selected = select(current);
             current = selected;
         }
@@ -62,26 +68,56 @@ Action Mcts::query(State state) {
         }
     } // end loop
 
+    // calculuate policy
+    std::array<float, 36> policy{};
+    for (auto child : root->children) {
+        assert(child->last_action.has_value());
+        int i = child->last_action->i;
+        int j = child->last_action->j;
+
+        float visits = static_cast<float>(child->visits);
+        policy[i * 6 + j] = visits;
+    }
+    // make it sum up to 1
+    float sum = std::accumulate(policy.begin(), policy.end(), 0.0f);
+    if (sum >= 1.0f) {
+        for (float& item : policy) {
+            float after = item / sum;
+            if (item != item) {
+                fmt::print(FGRED, "Got nan: {} / {} = {}\n", item, sum, after);
+            }
+            item = after;
+        }
+    }
+
+    // find max child
     std::vector<float> scores(root->children.size(), 0.0f);
     auto max_child = *std::max_element(
         root->children.begin(), root->children.end(),
         [](NodePtr& a, NodePtr& b) -> bool { return a->visits < b->visits; });
     assert(max_child->last_action.has_value());
-    return max_child->last_action.value();
+
+    return {max_child->last_action.value(), policy};
 }
 
 NodePtr Mcts::select(NodePtr current) {
+    assert(current->policy.has_value());
+
     std::vector<float> scores(current->children.size(), 0.0f);
     float parent_visits = static_cast<float>(current->visits);
+    auto parent_policy = current->policy.value();
 
     for (size_t i = 0; i < current->children.size(); i += 1) {
         NodePtr child = current->children[i];
+        assert(child->last_action.has_value());
+        Action act = child->last_action.value();
+
         float child_visits = static_cast<float>(child->visits);
 
         float exploit = child->ttlvalue / (child_visits + 1.0f);
-        float explore =
-            std::sqrt(2.0 * std::log(std::max(parent_visits, 1.0f)) /
-                      (child_visits + 1.0f));
+        float explore = std::sqrt(2.0) * parent_policy[act.i * 6 + act.j] *
+                        std::sqrt(parent_visits) / (1.0f + child_visits);
+
         float ucb = exploit + explore;
         scores[i] = ucb;
     }
@@ -97,6 +133,12 @@ NodePtr Mcts::select(NodePtr current) {
         }
     }
 
+    if (selected.has_value() == false) {
+        fmt::print("scores = {}\n", fmt::join(scores, ", "));
+        for (auto& child : current->children) {
+            fmt::print("{}\n", *child.get());
+        }
+    }
     return selected.value();
 }
 
@@ -125,4 +167,18 @@ void Mcts::evaluate(NodePtr current, Player me) {
 
     current->value = value;
     current->policy = policy;
+}
+
+std::ostream& operator<<(std::ostream& out, const Node& node) {
+    out << "Node("
+        << "visits = " << node.visits << ", ttlvalue = " << node.ttlvalue
+        << ", value = "
+        << (node.value.has_value() ? fmt::format("{:.3}", node.value.value())
+                                   : "none")
+        << ", policy = "
+        << (node.policy.has_value()
+                ? fmt::format("{}", fmt::join(node.policy.value(), ", "))
+                : "none")
+        << ")";
+    return out;
 }
