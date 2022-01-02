@@ -3,10 +3,43 @@
 #include <cassert>
 
 /* state implementation */
+// constructors
+State::State() {}
+State::State(const State& rhs) {
+    board = rhs.board;
+    next = rhs.next;
+    winner = rhs.winner;
+    age = rhs.age;
+}
+State& State::operator=(const State& rhs) {
+    board = rhs.board;
+    next = rhs.next;
+    winner = rhs.winner;
+    age = rhs.age;
+    return *this;
+}
+
 // getters
 bool State::is_ended() const { return (age == 36) || (winner.has_value()); }
+int State::get_age() const { return age; }
 std::optional<Player> State::get_winner() const { return winner; }
 Player State::get_next() const { return next; }
+std::array<std::array<float, 6>, 6> State::canonical() const {
+    std::array<std::array<float, 6>, 6> arr;
+    for (size_t i = 0; i < 6; i += 1) {
+        for (size_t j = 0; j < 6; j += 1) {
+            if (board[i][j] == next) {
+                arr[i][j] = 1.0f;
+            } else if (board[i][j] == !next) {
+                arr[i][j] = -1.0f;
+            } else {
+                assert(board[i][j] == Stone::None);
+                arr[i][j] = 0.0f;
+            }
+        }
+    }
+    return arr;
+}
 
 // list out actions
 std::vector<Action> State::get_actions() const {

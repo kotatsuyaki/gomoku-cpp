@@ -15,6 +15,7 @@
 const auto FGRED = fmt::fg(fmt::color::red);
 
 void randgame();
+void combatgame();
 void create_net();
 
 int main(int argc, char** argv) {
@@ -29,6 +30,8 @@ int main(int argc, char** argv) {
         return EXIT_SUCCESS;
     } else if (subcmd == "randgame") {
         randgame();
+    } else if (subcmd == "combatgame") {
+        combatgame();
     } else {
         fmt::print(stderr, FGRED, "unknown subcommand {}\n", subcmd);
         return EXIT_FAILURE;
@@ -42,27 +45,56 @@ void create_net() {
 
     auto net = Net();
     auto x = torch::eye(6).reshape({1, 1, 6, 6}).repeat({2, 1, 1, 1});
-    auto output = net.forward(x);
+    auto [value, policy] = net.forward(x);
 
     fmt::print("input shape = {}\n"
-               "output shape = {}\n",
-               x.sizes(), output.sizes());
+               "value shape = {}\n"
+               "policy shape = {}",
+               x.sizes(), value.sizes(), policy.sizes());
+}
+
+Action randmove(State state) {
+    static std::random_device rd;
+    static std::mt19937 gen(rd());
+
+    auto actions = state.get_actions();
+    std::uniform_int_distribution<> dist(0, actions.size() - 1);
+    Action action = actions[dist(gen)];
+    return action;
 }
 
 void randgame() {
-    std::random_device rd;
-    std::mt19937 gen(rd());
-
     State state{};
     while (state.is_ended() == false) {
-        auto actions = state.get_actions();
-        std::uniform_int_distribution<> dist(0, actions.size() - 1);
-        Action action = actions[dist(gen)];
-
         auto me = state.get_next();
+        auto action = randmove(state);
         state.place(action);
 
         fmt::print("{} placed stone at {}:\n{}\n", me, action, state);
+    }
+    if (state.get_winner().has_value()) {
+        fmt::print("Winner: {}\n", state.get_winner().value());
+    } else {
+        fmt::print("Tie\n");
+    }
+}
+
+void combatgame() {
+    State state{};
+    Net net{};
+    Mcts mcts{net};
+
+    while (state.is_ended() == false) {
+        auto me = state.get_next();
+        if (state.get_age() % 2 == 0) {
+            Action action = randmove(state);
+            state.place(action);
+            fmt::print("{} placed stone at {}:\n{}\n", me, action, state);
+        } else {
+            Action action = mcts.query(state);
+            state.place(action);
+            fmt::print("{} placed stone at {}:\n{}\n", me, action, state);
+        }
     }
     if (state.get_winner().has_value()) {
         fmt::print("Winner: {}\n", state.get_winner().value());

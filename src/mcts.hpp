@@ -16,18 +16,24 @@
 #include <torch/torch.h>
 
 struct Node {
-    Node(State state, int visits, float value,
-         std::optional<Action> last_action);
+    Node(State state, std::optional<Action> last_action,
+         std::shared_ptr<Node> parent);
     State state;
-    int visits;
-    float value;
+    int visits = 0;
+    float ttlvalue = 0.0f;
+
+    std::optional<std::array<float, 36>> policy = std::nullopt;
+    std::optional<float> value = std::nullopt;
+
     std::optional<Action> last_action;
-    std::vector<std::shared_ptr<Node>> children;
+    std::shared_ptr<Node> parent;
+    std::vector<std::shared_ptr<Node>> children{};
 };
 
 using NodePtr = std::shared_ptr<Node>;
 
 class Mcts {
+  public:
     Mcts(Net net);
     Action query(State state);
 
@@ -35,4 +41,6 @@ class Mcts {
     Net net;
 
     NodePtr select(NodePtr current);
+    void expand(NodePtr current);
+    void evaluate(NodePtr current, Player me);
 };

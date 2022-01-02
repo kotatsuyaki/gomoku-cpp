@@ -40,12 +40,18 @@ class State {
     int age = 0;
 
   public:
+    State();
+    State(const State& rhs);
+    State& operator=(const State& rhs);
+
     bool is_ended() const;
     std::vector<Action> get_actions() const;
     void place(Action action);
 
+    int get_age() const;
     Player get_next() const;
     std::optional<Player> get_winner() const;
+    std::array<std::array<float, 6>, 6> canonical() const;
 
     friend std::ostream& operator<<(std::ostream& out, const State& state);
 };
