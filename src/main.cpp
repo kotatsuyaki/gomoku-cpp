@@ -177,9 +177,9 @@ void train() {
             Player me = state.get_next();
             float value;
             if (winner.has_value()) {
-                value = (winner.value() == me) ? 1.0f : -1.0f;
+                value = (winner.value() == me) ? 1.0f : 0.0f;
             } else {
-                value = 0.0f;
+                value = 0.5f;
             }
             s_v_p_tuples.emplace_back(state.canonical(), value, policy);
         }
