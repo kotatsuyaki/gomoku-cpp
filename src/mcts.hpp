@@ -25,7 +25,7 @@ struct Node {
     int depth = 0;
 
     std::optional<Action> last_action;
-    std::shared_ptr<Node> parent;
+    std::weak_ptr<Node> parent;
     std::vector<std::shared_ptr<Node>> children{};
 
     friend std::ostream& operator<<(std::ostream& out, const Node& node);

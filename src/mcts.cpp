@@ -69,8 +69,8 @@ std::pair<Action, std::array<float, 36>> Mcts::query(State state) {
                 current->ttlvalue += 0.2;
             }
 
-            if (current->parent != nullptr) {
-                current = current->parent;
+            if (current->parent.lock() != nullptr) {
+                current = current->parent.lock();
             } else {
                 break;
             }
