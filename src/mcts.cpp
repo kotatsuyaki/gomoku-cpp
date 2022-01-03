@@ -1,4 +1,5 @@
 #include "mcts.hpp"
+#include "tensor_utils.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -22,18 +23,12 @@ Node::Node(State state, std::optional<Action> last_action,
            std::shared_ptr<Node> parent = nullptr)
     : state(state), last_action(last_action), parent(parent) {}
 
-Mcts::Mcts(Net net) : net(net) {}
+Mcts::Mcts() {}
 
 static const char* ITERS_S = std::getenv("ITERS");
 static int ITERS = ITERS_S ? std::atoi(ITERS_S) : 500;
-static const char* RAWQUERY_S = std::getenv("RAWQUERY");
-static bool RAWQUERY = RAWQUERY_S ? true : false;
 
 std::pair<Action, std::array<float, 36>> Mcts::query(State state) {
-    if (RAWQUERY) {
-        return raw_query(state);
-    }
-
     NodePtr root = std::make_shared<Node>(state, std::nullopt);
     Player me = state.get_next();
 
@@ -97,25 +92,6 @@ std::pair<Action, std::array<float, 36>> Mcts::query(State state) {
 
     auto max_child = sample_select(root);
     return {max_child->last_action.value(), policy};
-}
-
-std::pair<Action, std::array<float, 36>> Mcts::raw_query(State state) {
-    auto canonical = state.canonical();
-    auto options = torch::TensorOptions().dtype(torch::kFloat32);
-    auto input = torch::from_blob(canonical.data(), {1, 1, 6, 6}, options)
-                     .to(torch::kCUDA);
-
-    auto policy_t = net->forward(input);
-    policy_t = policy_t.exp().to(torch::kCPU);
-    Policy policy = policy_from_tensor(policy_t);
-
-    auto actions = state.get_actions();
-    auto action = std::max_element(
-        actions.begin(), actions.end(), [&](Action a, Action b) {
-            return policy[a.i * 6 + a.j] < policy[b.i * 6 + b.j];
-        });
-
-    return {*action, policy};
 }
 
 std::vector<float> Mcts::children_scores(NodePtr current) {
@@ -201,19 +177,6 @@ std::optional<Player> Mcts::simulate(NodePtr current) {
     return state.get_winner();
 }
 
-Policy policy_from_tensor(Tensor tensor) {
-    Policy policy;
-    std::memcpy(policy.data(),
-                static_cast<float*>(tensor.to(torch::kCPU).data_ptr()),
-                sizeof(policy));
-    return policy;
-}
-
-float value_from_tensor(Tensor tensor) {
-    float value = *static_cast<float*>(tensor.to(torch::kCPU).data_ptr());
-    return value;
-}
-
 std::ostream& operator<<(std::ostream& out, const Node& node) {
     out << "Node("
         << "visits = " << node.visits << ", ttlvalue = " << node.ttlvalue
@@ -222,14 +185,3 @@ std::ostream& operator<<(std::ostream& out, const Node& node) {
 }
 
 void show_iters() { fmt::print("Using ITERS = {}\n", ITERS); }
-
-void show_policy(Policy policy) {
-    for (int i = 0; i < 36; i += 1) {
-        fmt::print("{:8.2}", policy[i]);
-        if ((i + 1) % 6 == 0) {
-            fmt::print("\n");
-        } else {
-            fmt::print(", ");
-        }
-    }
-}

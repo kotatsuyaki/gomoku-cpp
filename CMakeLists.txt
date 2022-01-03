@@ -7,7 +7,7 @@ find_package(fmt REQUIRED)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
 
-add_executable(main src/main.cpp src/model.cpp src/mcts.cpp src/game.cpp)
+add_executable(main src/main.cpp src/model.cpp src/mcts.cpp src/game.cpp src/net_query.cpp ./src/tensor_utils.cpp)
 
 # Link libraries
 target_link_libraries(main "${TORCH_LIBRARIES}")

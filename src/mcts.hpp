@@ -2,6 +2,7 @@
 
 #include "game.hpp"
 #include "model.hpp"
+#include "tensor_utils.hpp"
 
 #include <array>
 #include <cassert>
@@ -14,9 +15,6 @@
 #include <vector>
 
 #include <torch/torch.h>
-
-using Policy = std::array<float, 36>;
-using Canonical = std::array<std::array<float, 6>, 6>;
 
 struct Node {
     Node(State state, std::optional<Action> last_action,
@@ -37,13 +35,10 @@ using NodePtr = std::shared_ptr<Node>;
 
 class Mcts {
   public:
-    Mcts(Net net);
+    Mcts();
     std::pair<Action, std::array<float, 36>> query(State state);
-    std::pair<Action, std::array<float, 36>> raw_query(State state);
 
   private:
-    Net net;
-
     NodePtr sample_select(NodePtr current);
     NodePtr max_select(NodePtr current);
     std::vector<float> children_scores(NodePtr current);
@@ -51,7 +46,4 @@ class Mcts {
     std::optional<Player> simulate(NodePtr current);
 };
 
-Policy policy_from_tensor(Tensor tensor);
-float value_from_tensor(Tensor tensor);
-void show_policy(Policy policy);
 void show_iters();
