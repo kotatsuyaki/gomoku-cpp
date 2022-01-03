@@ -122,7 +122,6 @@ void humangame() {
             auto [action, policy] = mcts.query(state);
             state.place(action);
 
-            fmt::print("Policy = {}\n", fmt::join(policy, ", "));
             fmt::print("{} placed stone at {}:\n{}\n", me, action, state);
         } else {
             int i, j;
