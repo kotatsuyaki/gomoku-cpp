@@ -22,6 +22,7 @@ struct Node {
     State state;
     int visits = 0;
     float ttlvalue = 0.0f;
+    int depth = 0;
 
     std::optional<Action> last_action;
     std::shared_ptr<Node> parent;
@@ -43,7 +44,8 @@ class Mcts {
     NodePtr max_select(NodePtr current);
     std::vector<float> children_scores(NodePtr current);
     void expand(NodePtr current);
-    std::optional<Player> simulate(NodePtr current);
+    // depth and winner
+    std::pair<int, std::optional<Player>> simulate(NodePtr current);
 };
 
 void show_iters();

@@ -21,18 +21,19 @@ const auto FGRED = fmt::fg(fmt::color::red);
 
 Node::Node(State state, std::optional<Action> last_action,
            std::shared_ptr<Node> parent = nullptr)
-    : state(state), last_action(last_action), parent(parent) {}
+    : state(state), last_action(last_action), parent(parent),
+      depth((parent != nullptr) ? (parent->depth + 1) : 0) {}
 
 Mcts::Mcts() {}
 
 static const char* ITERS_S = std::getenv("ITERS");
-static int ITERS = ITERS_S ? std::atoi(ITERS_S) : 500;
+static int ITERS = ITERS_S ? std::atoi(ITERS_S) : 5000;
 
 std::pair<Action, std::array<float, 36>> Mcts::query(State state) {
     NodePtr root = std::make_shared<Node>(state, std::nullopt);
     Player me = state.get_next();
 
-    for (int iter = 0; iter < 1000; iter += 1) {
+    for (int iter = 0; iter < ITERS; iter += 1) {
         NodePtr current = root;
 
         // select
@@ -45,21 +46,29 @@ std::pair<Action, std::array<float, 36>> Mcts::query(State state) {
         if (current->state.is_ended() == false) {
             expand(current);
         }
-        auto winner = simulate(current);
+
+        // simulate
         float score_update;
-        if (winner.has_value()) {
-            score_update =
-                (winner.value() == current->state.get_next()) ? 1.0f : 0.0f;
-        } else {
-            score_update = 0.5;
-        }
+        auto [depth, winner] = simulate(current);
 
         // backprop
         while (true) {
-            score_update = 1.0 - score_update;
+            score_update = 1.0f - score_update;
 
             current->visits += 1;
-            current->ttlvalue += score_update;
+            if (winner.has_value()) {
+                if (current->state.get_next() == winner.value()) {
+                    // this leads to a win => the parent node don't want this
+                    current->ttlvalue +=
+                        -std::exp(-0.5f * (0.2f * depth - 5.0f)) - 5.0f;
+                } else {
+                    // this leads to a lose => the parent node is happy
+                    current->ttlvalue += 1.0f;
+                }
+            } else {
+                current->ttlvalue += 0.2;
+            }
+
             if (current->parent != nullptr) {
                 current = current->parent;
             } else {
@@ -78,6 +87,8 @@ std::pair<Action, std::array<float, 36>> Mcts::query(State state) {
         float visits = static_cast<float>(child->visits);
         policy[i * 6 + j] = visits;
     }
+    fmt::print("Raw policy = {}\n", fmt::join(policy, ", "));
+
     // make it sum up to 1
     float sum = std::accumulate(policy.begin(), policy.end(), 0.0f);
     if (sum >= 1.0f) {
@@ -95,8 +106,6 @@ std::pair<Action, std::array<float, 36>> Mcts::query(State state) {
 }
 
 std::vector<float> Mcts::children_scores(NodePtr current) {
-    assert(current->policy.has_value());
-
     std::vector<float> scores(current->children.size(), 0.0f);
     float parent_visits = static_cast<float>(current->visits);
 
@@ -121,24 +130,7 @@ std::vector<float> Mcts::children_scores(NodePtr current) {
 
 NodePtr Mcts::sample_select(NodePtr current) {
     auto scores = children_scores(current);
-
-    /* sample an index */
-    // total sum
-    float sum = std::accumulate(scores.begin(), scores.end(), 0.0f);
-    // prefix sum
-    std::vector<float> scores_prefix_sum{};
-    std::exclusive_scan(scores.begin(), scores.end(),
-                        std::back_inserter(scores_prefix_sum), 0.0f);
-
-    static std::random_device rd;
-    static std::mt19937 gen(rd());
-    std::uniform_real_distribution<> dist(0.0f, sum);
-    auto it = std::upper_bound(scores_prefix_sum.begin(),
-                               scores_prefix_sum.end(), dist(gen));
-    int idx = it - scores_prefix_sum.begin() - 1;
-
-    // not sure if it generates OOB access
-    assert(idx < 0 || idx >= current->children.size());
+    int idx = std::max_element(scores.begin(), scores.end()) - scores.begin();
 
     return current->children[idx];
 }
@@ -162,19 +154,22 @@ void Mcts::expand(NodePtr current) {
     }
 }
 
-std::optional<Player> Mcts::simulate(NodePtr current) {
+std::pair<int, std::optional<Player>> Mcts::simulate(NodePtr current) {
     // state is to be modified in-place
     State state{current->state};
+    int i = 0;
     while (state.is_ended() == false) {
         static std::random_device rd;
         static std::mt19937 gen(rd());
+
+        i += 1;
 
         auto actions = state.get_actions();
         std::uniform_int_distribution<> dist(0, actions.size() - 1);
         Action action = actions[dist(gen)];
         state.place(action);
     }
-    return state.get_winner();
+    return {current->depth + i, state.get_winner()};
 }
 
 std::ostream& operator<<(std::ostream& out, const Node& node) {

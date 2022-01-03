@@ -21,6 +21,7 @@ void combatgame();
 void create();
 void humangame();
 void train();
+void train2();
 void bench();
 void dump();
 
@@ -113,17 +114,15 @@ void randgame() {
 
 void humangame() {
     State state{};
-    Net net{};
-    torch::load(net, "net.pt");
-    Mcts mcts{net};
-    net->to(torch::kCUDA);
+    Mcts mcts{};
 
     while (state.is_ended() == false) {
         auto me = state.get_next();
         if (state.get_age() % 2 == 0) {
-            Action action = mcts.query(state).first;
+            auto [action, policy] = mcts.query(state);
             state.place(action);
 
+            fmt::print("Policy = {}\n", fmt::join(policy, ", "));
             fmt::print("{} placed stone at {}:\n{}\n", me, action, state);
         } else {
             int i, j;
@@ -142,7 +141,7 @@ void combatgame() {
     State state{};
     Net net{};
     torch::load(net, "net.pt");
-    Mcts mcts{net};
+    Mcts mcts{};
     net->to(torch::kCUDA);
 
     while (state.is_ended() == false) {
@@ -180,7 +179,107 @@ void train() {
     torch::load(opt, "opt.pt");
     net->to(torch::kCUDA);
 
-    Mcts mcts{net};
+    Mcts mcts{};
+    std::vector<std::pair<Canonical, Policy>> s_p_pairs{};
+
+#pragma omp parallel for
+    for (int i = 0; i < plays; i += 1) {
+        fmt::print("Selfplay game #{} started\n", i);
+        std::vector<std::pair<State, Policy>> local_s_p_pairs{};
+
+        State state{};
+        while (state.is_ended() == false) {
+            std::cout.flush();
+
+            auto me = state.get_next();
+            auto [action, policy] = mcts.query(state);
+
+            local_s_p_pairs.emplace_back(state, policy);
+
+            state.place(action);
+        }
+
+        fmt::print("Selfplay game #{} ended\n", i);
+        show_winner(state);
+
+#pragma omp critical
+        {
+            for (auto item : s_p_pairs) {
+                s_p_pairs.push_back(item);
+            }
+        }
+    }
+
+    // Shuffle training data
+    fmt::print("Shuffling {} history samples\n", s_p_pairs.size());
+    std::random_shuffle(s_p_pairs.begin(), s_p_pairs.end());
+
+    // Train
+    fmt::print("Training on {} history samples\n", s_p_pairs.size());
+    int i;
+    for (auto [s, p] : s_p_pairs) {
+        net->zero_grad();
+        auto options = torch::TensorOptions().dtype(torch::kFloat32);
+        auto state_t =
+            torch::from_blob(s.data(), {1, 1, 6, 6}, options).to(torch::kCUDA);
+        auto policy_t =
+            torch::from_blob(p.data(), {1, 36}, options).to(torch::kCUDA);
+
+        // fmt::print("s/v/p = {}, {}, {}\n", state_t, value_t, policy_t);
+        auto policy_p = net->forward(state_t);
+        // fmt::print("vp/pp = {}, {}\n", value_p, policy_p);
+
+        auto ploss = -(policy_p * policy_t).sum(torch::kFloat32);
+        auto loss = ploss;
+        if (*static_cast<bool*>(
+                (loss != loss).any().to(torch::kCPU).data_ptr())) {
+            fmt::print(FGRED, "Got nan in loss (shape = {}): {}\n",
+                       loss.sizes(), loss);
+            assert(false);
+        }
+
+        // calculate gradients
+        loss.backward();
+        // update params
+        opt.step();
+
+        i += 1;
+        if (i % 10 == 0) {
+            fmt::print(FGGRN, "Trained {} iterations\n", i);
+            float ploss_s =
+                *static_cast<float*>(ploss.to(torch::kCPU).data_ptr());
+            float loss_s =
+                *static_cast<float*>(loss.to(torch::kCPU).data_ptr());
+            fmt::print("Loss {:.3} = {:.3}\n", loss_s, ploss_s);
+        }
+    }
+
+    fmt::print("Saving model and optimizer\n");
+    torch::save(net, "net.pt");
+    torch::save(opt, "opt.pt");
+}
+
+void train2() {
+    // print setup info
+    int plays;
+    if (const char* plays_s = getenv("PLAYS")) {
+        fmt::print("Using supplied plays {}\n", plays_s);
+        plays = std::atoi(plays_s);
+    } else {
+        fmt::print("Using default plays 8\n");
+        plays = 8;
+    }
+    show_iters();
+
+    // load net
+    Net net{};
+    fmt::print("Loading model and optimizer\n");
+    torch::load(net, "net.pt");
+    torch::optim::Adam opt(net->parameters());
+    torch::load(opt, "opt.pt");
+    net->to(torch::kCUDA);
+
+    Mcts mcts{};
 
     // collect self-play data
     std::vector<std::tuple<Canonical, float, Policy>> s_v_p_tuples{};
@@ -271,7 +370,7 @@ void bench() {
     torch::load(net, "net.pt");
     torch::optim::Adam opt(net->parameters());
     torch::load(opt, "opt.pt");
-    Mcts mcts{net};
+    Mcts mcts{};
     net->to(torch::kCPU);
 
     {
@@ -342,7 +441,7 @@ void dump() {
     torch::load(net, "net.pt");
     torch::optim::Adam opt(net->parameters());
     torch::load(opt, "opt.pt");
-    Mcts mcts{net};
+    Mcts mcts{};
     net->to(torch::kCPU);
 
     fmt::print("Dumping parameters\n");

@@ -16,6 +16,12 @@ target_link_libraries(main fmt::fmt)
 
 set_property(TARGET main PROPERTY CXX_STANDARD 17)
 
+# Enable OMP
+find_package(OpenMP)
+if(OpenMP_CXX_FOUND)
+    target_link_libraries(main OpenMP::OpenMP_CXX)
+endif()
+
 # For development
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON CACHE INTERNAL "")
 if(CMAKE_EXPORT_COMPILE_COMMANDS)
