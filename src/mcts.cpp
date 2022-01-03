@@ -129,8 +129,15 @@ std::vector<float> Mcts::children_scores(NodePtr current) {
 }
 
 NodePtr Mcts::sample_select(NodePtr current) {
-    auto scores = children_scores(current);
-    int idx = std::max_element(scores.begin(), scores.end()) - scores.begin();
+    std::vector<int> visits{};
+    for (auto& child : current->children) {
+        visits.push_back(child->visits);
+    }
+
+    static std::random_device rd;
+    static std::mt19937 gen(rd());
+    std::discrete_distribution<> dist(visits.begin(), visits.end());
+    int idx = dist(gen);
 
     return current->children[idx];
 }
