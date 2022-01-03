@@ -41,27 +41,22 @@ std::pair<Action, std::array<float, 36>> Mcts::query(State state) {
         NodePtr current = root;
 
         // select
-        while (current->value.has_value()) {
+        while (current->children.empty() == false) {
             NodePtr selected = max_select(current);
             current = selected;
         }
 
-        // expand and get amount of score update
-        float score_update;
+        // expand
         if (current->state.is_ended() == false) {
             expand(current);
-            evaluate(current, me);
-
-            assert(current->value.has_value());
-            score_update = current->value.value();
+        }
+        auto winner = simulate(current);
+        float score_update;
+        if (winner.has_value()) {
+            score_update =
+                (winner.value() == current->state.get_next()) ? 1.0f : 0.0f;
         } else {
-            auto winner = current->state.get_winner();
-            if (winner.has_value()) {
-                score_update =
-                    (winner.value() == current->state.get_next()) ? 1.0f : 0.0f;
-            } else {
-                score_update = 0.5f;
-            }
+            score_update = 0.5;
         }
 
         // backprop
@@ -110,7 +105,7 @@ std::pair<Action, std::array<float, 36>> Mcts::raw_query(State state) {
     auto input = torch::from_blob(canonical.data(), {1, 1, 6, 6}, options)
                      .to(torch::kCUDA);
 
-    auto [value_t, policy_t] = net->forward(input);
+    auto policy_t = net->forward(input);
     policy_t = policy_t.exp().to(torch::kCPU);
     Policy policy = policy_from_tensor(policy_t);
 
@@ -128,7 +123,6 @@ std::vector<float> Mcts::children_scores(NodePtr current) {
 
     std::vector<float> scores(current->children.size(), 0.0f);
     float parent_visits = static_cast<float>(current->visits);
-    auto parent_policy = current->policy.value();
 
     for (size_t i = 0; i < current->children.size(); i += 1) {
         NodePtr child = current->children[i];
@@ -138,8 +132,9 @@ std::vector<float> Mcts::children_scores(NodePtr current) {
         float child_visits = static_cast<float>(child->visits);
 
         float exploit = child->ttlvalue / (child_visits + 1.0f);
-        float explore = std::sqrt(2.0) * parent_policy[act.i * 6 + act.j] *
-                        std::sqrt(parent_visits) / (1.0f + child_visits);
+        float explore =
+            std::sqrt(2.0f * std::log(std::max(1.0f, parent_visits)) /
+                      (child_visits + 1.0f));
 
         float ucb = exploit + explore;
         scores[i] = ucb;
@@ -191,21 +186,19 @@ void Mcts::expand(NodePtr current) {
     }
 }
 
-void Mcts::evaluate(NodePtr current, Player me) {
-    auto canonical = current->state.canonical();
-    auto options = torch::TensorOptions().dtype(torch::kFloat32);
-    auto input = torch::from_blob(canonical.data(), {1, 1, 6, 6}, options)
-                     .to(torch::kCUDA);
+std::optional<Player> Mcts::simulate(NodePtr current) {
+    // state is to be modified in-place
+    State state{current->state};
+    while (state.is_ended() == false) {
+        static std::random_device rd;
+        static std::mt19937 gen(rd());
 
-    auto [value_t, policy_t] = net->forward(input);
-    policy_t = policy_t.exp().to(torch::kCPU);
-    value_t = value_t.to(torch::kCPU);
-
-    float value = *static_cast<float*>(value_t.data_ptr());
-    Policy policy = policy_from_tensor(policy_t);
-
-    current->value = value;
-    current->policy = policy;
+        auto actions = state.get_actions();
+        std::uniform_int_distribution<> dist(0, actions.size() - 1);
+        Action action = actions[dist(gen)];
+        state.place(action);
+    }
+    return state.get_winner();
 }
 
 Policy policy_from_tensor(Tensor tensor) {
@@ -224,13 +217,6 @@ float value_from_tensor(Tensor tensor) {
 std::ostream& operator<<(std::ostream& out, const Node& node) {
     out << "Node("
         << "visits = " << node.visits << ", ttlvalue = " << node.ttlvalue
-        << ", value = "
-        << (node.value.has_value() ? fmt::format("{:.3}", node.value.value())
-                                   : "none")
-        << ", policy = "
-        << (node.policy.has_value()
-                ? fmt::format("{}", fmt::join(node.policy.value(), ", "))
-                : "none")
         << ")";
     return out;
 }

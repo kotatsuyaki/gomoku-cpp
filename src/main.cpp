@@ -67,12 +67,11 @@ void create_net() {
 
     auto net = Net();
     auto x = torch::eye(6).reshape({1, 1, 6, 6}).repeat({2, 1, 1, 1});
-    auto [value, policy] = net->forward(x);
+    auto policy = net->forward(x);
 
     fmt::print("input shape = {}\n"
-               "value shape = {}\n"
                "policy shape = {}\n",
-               x.sizes(), value.sizes(), policy.sizes());
+               x.sizes(), policy.sizes());
 
     torch::save(net, "net.pt");
 
@@ -232,12 +231,11 @@ void train() {
             torch::from_blob(p.data(), {1, 36}, options).to(torch::kCUDA);
 
         // fmt::print("s/v/p = {}, {}, {}\n", state_t, value_t, policy_t);
-        auto [value_p, policy_p] = net->forward(state_t);
+        auto policy_p = net->forward(state_t);
         // fmt::print("vp/pp = {}, {}\n", value_p, policy_p);
 
-        auto vloss = torch::nn::functional::mse_loss(value_p, value_t);
         auto ploss = -(policy_p * policy_t).sum(torch::kFloat32);
-        auto loss = vloss + ploss;
+        auto loss = ploss;
         if (*static_cast<bool*>(
                 (loss != loss).any().to(torch::kCPU).data_ptr())) {
             fmt::print(FGRED, "Got nan in loss (shape = {}): {}\n",
@@ -253,14 +251,11 @@ void train() {
         i += 1;
         if (i % 10 == 0) {
             fmt::print(FGGRN, "Trained {} iterations\n", i);
-            float vloss_s =
-                *static_cast<float*>(vloss.to(torch::kCPU).data_ptr());
             float ploss_s =
                 *static_cast<float*>(ploss.to(torch::kCPU).data_ptr());
             float loss_s =
                 *static_cast<float*>(loss.to(torch::kCPU).data_ptr());
-            fmt::print("Loss {:.3} = {:.3} + {:.3}\n", loss_s, vloss_s,
-                       ploss_s);
+            fmt::print("Loss {:.3} = {:.3}\n", loss_s, ploss_s);
         }
     }
 
@@ -289,13 +284,12 @@ void bench() {
             0, 0, 0, 0, -1, 0, //
             0, 0, 0, 0, -1, 0,
         };
-        auto [value, policy] =
+        auto policy =
             net->forward(torch::from_blob(board.data(), {1, 1, 6, 6}, options));
 
         fmt::print("Situation:\n");
         show_policy(board);
 
-        fmt::print("value:\n{}\n", value_from_tensor(value));
         fmt::print("policy:\n");
         show_policy(policy_from_tensor(policy.exp()));
     }
@@ -310,13 +304,12 @@ void bench() {
             0,  0,  1,  0,  0, 0, //
             0,  0,  0,  1,  0, 0,
         };
-        auto [value, policy] =
+        auto policy =
             net->forward(torch::from_blob(board.data(), {1, 1, 6, 6}, options));
 
         fmt::print("Situation:\n");
         show_policy(board);
 
-        fmt::print("value:\n{}\n", value_from_tensor(value));
         fmt::print("policy:\n");
         show_policy(policy_from_tensor(policy.exp()));
     }
@@ -331,13 +324,12 @@ void bench() {
             0, 0,  0, 0, 0, 0, //
             0, 0,  0, 0, 0, 0,
         };
-        auto [value, policy] =
+        auto policy =
             net->forward(torch::from_blob(board.data(), {1, 1, 6, 6}, options));
 
         fmt::print("Situation:\n");
         show_policy(board);
 
-        fmt::print("value:\n{}\n", value_from_tensor(value));
         fmt::print("policy:\n");
         show_policy(policy_from_tensor(policy.exp()));
     }

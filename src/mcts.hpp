@@ -25,12 +25,10 @@ struct Node {
     int visits = 0;
     float ttlvalue = 0.0f;
 
-    std::optional<std::array<float, 36>> policy = std::nullopt;
-    std::optional<float> value = std::nullopt;
-
     std::optional<Action> last_action;
     std::shared_ptr<Node> parent;
     std::vector<std::shared_ptr<Node>> children{};
+
     friend std::ostream& operator<<(std::ostream& out, const Node& node);
 };
 std::ostream& operator<<(std::ostream& out, const Node& node);
@@ -50,7 +48,7 @@ class Mcts {
     NodePtr max_select(NodePtr current);
     std::vector<float> children_scores(NodePtr current);
     void expand(NodePtr current);
-    void evaluate(NodePtr current, Player me);
+    std::optional<Player> simulate(NodePtr current);
 };
 
 Policy policy_from_tensor(Tensor tensor);
