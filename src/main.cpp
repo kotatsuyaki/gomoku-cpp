@@ -18,7 +18,7 @@ const auto FGGRN = fmt::fg(fmt::color::green);
 
 void randgame();
 void combatgame();
-void create_net();
+void create();
 void humangame();
 void train();
 void bench();
@@ -32,7 +32,7 @@ int main(int argc, char** argv) {
 
     std::string subcmd{argv[1]};
     if (subcmd == "create") {
-        create_net();
+        create();
         return EXIT_SUCCESS;
     } else if (subcmd == "randgame") {
         randgame();
@@ -54,7 +54,7 @@ int main(int argc, char** argv) {
     return EXIT_SUCCESS;
 }
 
-void create_net() {
+void create() {
     if (const char* seed = std::getenv("SEED")) {
         fmt::print("Using supplied seed {}\n", seed);
         torch::manual_seed(std::atoi(seed));
