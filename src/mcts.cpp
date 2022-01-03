@@ -87,7 +87,6 @@ std::pair<Action, std::array<float, 36>> Mcts::query(State state) {
         float visits = static_cast<float>(child->visits);
         policy[i * 6 + j] = visits;
     }
-    fmt::print("Raw policy = {}\n", fmt::join(policy, ", "));
 
     // make it sum up to 1
     float sum = std::accumulate(policy.begin(), policy.end(), 0.0f);

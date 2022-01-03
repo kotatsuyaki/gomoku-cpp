@@ -9,12 +9,12 @@ class NetImpl : public nn::Module {
   public:
     NetImpl();
     // value, policy
-    Tensor forward(Tensor x);
+    Tensor forward(Tensor x, bool print = false);
     // The user MUST call this with data on CPU
     void dump_parameters();
 
   private:
-    nn::Conv2d conv1, conv2;
+    nn::Conv2d conv1, conv2, conv3;
     nn::Flatten flat;
 
     void dump(Tensor x, std::string name);

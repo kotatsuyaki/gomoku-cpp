@@ -14,27 +14,22 @@
 #include <torch/nn/options/padding.h>
 
 NetImpl::NetImpl()
-    : conv1(nn::Conv2dOptions(1, 3, 3)
-                .stride(1)
-                .in_channels(1)
-                .out_channels(32)
-                .bias(false)),
-      conv2(nn::Conv2dOptions(1, 3, 3)
-                .stride(1)
-                .in_channels(32)
-                .out_channels(1)
-                .bias(false)),
-      flat(nn::Flatten()) {
+    : conv1(nn::Conv2dOptions(1, 20, 3).stride(1)),
+      conv2(nn::Conv2dOptions(20, 20, 3).stride(1)),
+      conv3(nn::Conv2dOptions(20, 1, 3).stride(1)), flat(nn::Flatten()) {
     flat->options.start_dim(1).end_dim(3);
     register_module("conv1", conv1);
     register_module("conv2", conv2);
+    register_module("conv3", conv3);
 }
 
 void NetImpl::dump_parameters() {
     dump(conv1->weight, "conv1.weight");
     dump(conv1->bias, "conv1.bias");
-    dump(conv2->weight, "conv1.weight");
-    dump(conv2->bias, "conv1.bias");
+    dump(conv2->weight, "conv2.weight");
+    dump(conv2->bias, "conv2.bias");
+    dump(conv3->weight, "conv3.weight");
+    dump(conv3->bias, "conv3.bias");
 }
 
 void NetImpl::dump(Tensor x, std::string name) {
@@ -56,14 +51,29 @@ void NetImpl::dump(Tensor x, std::string name) {
 }
 
 // value, policy
-Tensor NetImpl::forward(Tensor x) {
+Tensor NetImpl::forward(Tensor x, bool print) {
     auto padopts = torch::nn::functional::PadFuncOptions({1, 1, 1, 1});
 
     x = nn::functional::pad(x, padopts);
     x = torch::relu(conv1(x));
 
+    if (print) {
+        fmt::print("after conv1:\n{}\n", x);
+    }
+
     x = nn::functional::pad(x, padopts);
     x = torch::relu(conv2(x));
+
+    if (print) {
+        fmt::print("after conv2:\n{}\n", x);
+    }
+
+    x = nn::functional::pad(x, padopts);
+    x = torch::relu(conv3(x));
+
+    if (print) {
+        fmt::print("after conv3:\n{}\n", x);
+    }
 
     x = flat(x);
     x = torch::log_softmax(x, -1);

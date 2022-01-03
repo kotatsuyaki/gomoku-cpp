@@ -1,5 +1,6 @@
 #include "mcts.hpp"
 #include "model.hpp"
+#include "net_query.hpp"
 
 #include <algorithm>
 #include <cassert>
@@ -20,6 +21,7 @@ void randgame();
 void combatgame();
 void create();
 void humangame();
+void netgame();
 void train();
 void train2();
 void bench();
@@ -45,6 +47,8 @@ int main(int argc, char** argv) {
         bench();
     } else if (subcmd == "humangame") {
         humangame();
+    } else if (subcmd == "netgame") {
+        netgame();
     } else if (subcmd == "dump") {
         dump();
     } else {
@@ -136,6 +140,34 @@ void humangame() {
     show_winner(state);
 }
 
+void netgame() {
+    State state{};
+    Net net{};
+    torch::load(net, "net.pt");
+    net->to(torch::kCUDA);
+
+    NetQuery nq{net};
+
+    while (state.is_ended() == false) {
+        auto me = state.get_next();
+        if (state.get_age() % 2 == 0) {
+            auto [action, policy] = nq.raw_query(state);
+            state.place(action);
+
+            fmt::print("{} placed stone at {}:\n{}\n", me, action, state);
+        } else {
+            int i, j;
+            fmt::print("input i and j:\n");
+            std::cin >> i >> j;
+            Action action(i, j);
+            state.place(action);
+
+            fmt::print("{} placed stone at {}:\n{}\n", me, action, state);
+        }
+    }
+    show_winner(state);
+}
+
 void combatgame() {
     State state{};
     Net net{};
@@ -168,6 +200,22 @@ void train() {
         fmt::print("Using default plays 8\n");
         plays = 8;
     }
+    int epochs;
+    if (const char* epochs_s = getenv("EPOCHS")) {
+        fmt::print("Using supplied epochs {}\n", epochs_s);
+        epochs = std::atoi(epochs_s);
+    } else {
+        fmt::print("Using default epochs 8\n");
+        epochs = 8;
+    }
+    int ending;
+    if (const char* ending_s = getenv("ENDING")) {
+        fmt::print("Using supplied ending {}\n", ending_s);
+        ending = std::atoi(ending_s);
+    } else {
+        fmt::print("Using default ending 5\n");
+        ending = 5;
+    }
     show_iters();
 
     // load net
@@ -181,10 +229,11 @@ void train() {
     Mcts mcts{};
     std::vector<std::pair<Canonical, Policy>> s_p_pairs{};
 
+    int playcount = 0;
 #pragma omp parallel for
     for (int i = 0; i < plays; i += 1) {
-        fmt::print("Selfplay game #{} started\n", i);
-        std::vector<std::pair<State, Policy>> local_s_p_pairs{};
+        fmt::print("Selfplay game started\n", i);
+        std::vector<std::pair<Canonical, Policy>> local_s_p_pairs{};
 
         State state{};
         while (state.is_ended() == false) {
@@ -193,63 +242,72 @@ void train() {
             auto me = state.get_next();
             auto [action, policy] = mcts.query(state);
 
-            local_s_p_pairs.emplace_back(state, policy);
+            local_s_p_pairs.emplace_back(state.canonical(), policy);
 
             state.place(action);
         }
 
-        fmt::print("Selfplay game #{} ended\n", i);
-        show_winner(state);
-
+        int nth;
 #pragma omp critical
         {
-            for (auto item : s_p_pairs) {
-                s_p_pairs.push_back(item);
+            for (auto it = local_s_p_pairs.rbegin();
+                 it != local_s_p_pairs.rend(); it++) {
+                if (it - local_s_p_pairs.rbegin() < ending) {
+                    s_p_pairs.push_back(*it);
+                } else {
+                    break;
+                }
             }
+            playcount += 1;
+            nth = playcount;
         }
+        fmt::print("Selfplay game #{} ended\n", nth);
+        show_winner(state);
     }
 
-    // Shuffle training data
-    fmt::print("Shuffling {} history samples\n", s_p_pairs.size());
-    std::random_shuffle(s_p_pairs.begin(), s_p_pairs.end());
+    for (int epoch = 0; epoch < epochs; epoch += 1) {
+        // Shuffle training data
+        fmt::print("Shuffling {} history samples\n", s_p_pairs.size());
+        std::random_shuffle(s_p_pairs.begin(), s_p_pairs.end());
 
-    // Train
-    fmt::print("Training on {} history samples\n", s_p_pairs.size());
-    int i;
-    for (auto [s, p] : s_p_pairs) {
-        net->zero_grad();
-        auto options = torch::TensorOptions().dtype(torch::kFloat32);
-        auto state_t =
-            torch::from_blob(s.data(), {1, 1, 6, 6}, options).to(torch::kCUDA);
-        auto policy_t =
-            torch::from_blob(p.data(), {1, 36}, options).to(torch::kCUDA);
+        // Train
+        fmt::print("Training on {} history samples\n", s_p_pairs.size());
+        int i = 0;
+        for (auto [s, p] : s_p_pairs) {
+            net->zero_grad();
+            auto options = torch::TensorOptions().dtype(torch::kFloat32);
+            auto state_t = torch::from_blob(s.data(), {1, 1, 6, 6}, options)
+                               .to(torch::kCUDA);
+            auto policy_t =
+                torch::from_blob(p.data(), {1, 36}, options).to(torch::kCUDA);
 
-        // fmt::print("s/v/p = {}, {}, {}\n", state_t, value_t, policy_t);
-        auto policy_p = net->forward(state_t);
-        // fmt::print("vp/pp = {}, {}\n", value_p, policy_p);
+            // fmt::print("s/v/p = {}, {}, {}\n", state_t, value_t, policy_t);
+            auto policy_p = net->forward(state_t);
+            // fmt::print("vp/pp = {}, {}\n", value_p, policy_p);
 
-        auto ploss = -(policy_p * policy_t).sum(torch::kFloat32);
-        auto loss = ploss;
-        if (*static_cast<bool*>(
-                (loss != loss).any().to(torch::kCPU).data_ptr())) {
-            fmt::print(FGRED, "Got nan in loss (shape = {}): {}\n",
-                       loss.sizes(), loss);
-            assert(false);
-        }
+            auto ploss = -(policy_p * policy_t).sum(torch::kFloat32);
+            auto loss = ploss;
+            if (*static_cast<bool*>(
+                    (loss != loss).any().to(torch::kCPU).data_ptr())) {
+                fmt::print(FGRED, "Got nan in loss (shape = {}): {}\n",
+                           loss.sizes(), loss);
+                assert(false);
+            }
 
-        // calculate gradients
-        loss.backward();
-        // update params
-        opt.step();
+            // calculate gradients
+            loss.backward();
+            // update params
+            opt.step();
 
-        i += 1;
-        if (i % 10 == 0) {
-            fmt::print(FGGRN, "Trained {} iterations\n", i);
-            float ploss_s =
-                *static_cast<float*>(ploss.to(torch::kCPU).data_ptr());
-            float loss_s =
-                *static_cast<float*>(loss.to(torch::kCPU).data_ptr());
-            fmt::print("Loss {:.3} = {:.3}\n", loss_s, ploss_s);
+            i += 1;
+            if (i % 10 == 0) {
+                fmt::print(FGGRN, "Trained {} iterations\n", i);
+                float ploss_s =
+                    *static_cast<float*>(ploss.to(torch::kCPU).data_ptr());
+                float loss_s =
+                    *static_cast<float*>(loss.to(torch::kCPU).data_ptr());
+                fmt::print("Loss {:.3} = {:.3}\n", loss_s, ploss_s);
+            }
         }
     }
 
@@ -367,9 +425,6 @@ void bench() {
     Net net{};
     fmt::print("Loading model and optimizer\n");
     torch::load(net, "net.pt");
-    torch::optim::Adam opt(net->parameters());
-    torch::load(opt, "opt.pt");
-    Mcts mcts{};
     net->to(torch::kCPU);
 
     {
@@ -382,8 +437,8 @@ void bench() {
             0, 0, 0, 0, -1, 0, //
             0, 0, 0, 0, -1, 0,
         };
-        auto policy =
-            net->forward(torch::from_blob(board.data(), {1, 1, 6, 6}, options));
+        auto policy = net->forward(
+            torch::from_blob(board.data(), {1, 1, 6, 6}, options), true);
 
         fmt::print("Situation:\n");
         show_policy(board);
@@ -402,8 +457,8 @@ void bench() {
             0,  0,  1,  0,  0, 0, //
             0,  0,  0,  1,  0, 0,
         };
-        auto policy =
-            net->forward(torch::from_blob(board.data(), {1, 1, 6, 6}, options));
+        auto policy = net->forward(
+            torch::from_blob(board.data(), {1, 1, 6, 6}, options), true);
 
         fmt::print("Situation:\n");
         show_policy(board);
@@ -422,8 +477,8 @@ void bench() {
             0, 0,  0, 0, 0, 0, //
             0, 0,  0, 0, 0, 0,
         };
-        auto policy =
-            net->forward(torch::from_blob(board.data(), {1, 1, 6, 6}, options));
+        auto policy = net->forward(
+            torch::from_blob(board.data(), {1, 1, 6, 6}, options), true);
 
         fmt::print("Situation:\n");
         show_policy(board);

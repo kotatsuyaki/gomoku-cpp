@@ -1,6 +1,6 @@
 #include "net_query.hpp"
 
-NetQuery::NetQuery(Net net) : net(net){}
+NetQuery::NetQuery(Net net) : net(net) {}
 
 std::pair<Action, Policy> NetQuery::raw_query(State state) {
     auto canonical = state.canonical();
