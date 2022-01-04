@@ -253,7 +253,9 @@ void train() {
             for (auto it = local_s_p_pairs.rbegin();
                  it != local_s_p_pairs.rend(); it++) {
                 if (it - local_s_p_pairs.rbegin() < ending) {
-                    s_p_pairs.push_back(*it);
+                    for (auto [aug_s, aug_p] : augment(it->first, it->second)) {
+                        s_p_pairs.push_back({aug_s, aug_p});
+                    }
                 } else {
                     break;
                 }
