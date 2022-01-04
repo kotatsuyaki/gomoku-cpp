@@ -1,6 +1,7 @@
 #include "mcts.hpp"
 #include "model.hpp"
 #include "net_query.hpp"
+#include "tensor_utils.hpp"
 
 #include <algorithm>
 #include <cassert>
