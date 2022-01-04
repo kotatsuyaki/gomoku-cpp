@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <fstream>
 #include <functional>
+#include <limits>
 #include <numeric>
 
 #include <ATen/Functions.h>
@@ -25,22 +26,11 @@ NetImpl::NetImpl()
     register_module("conv3", conv3);
 }
 
-void NetImpl::dump_parameters() {
-    dump(conv1->weight, "conv1.weight");
-    dump(conv1->bias, "conv1.bias");
-    dump(conv2->weight, "conv2.weight");
-    dump(conv2->bias, "conv2.bias");
-    dump(conv3->weight, "conv3.weight");
-    dump(conv3->bias, "conv3.bias");
-}
-
-void NetImpl::dump(Tensor x, std::string name) {
+namespace {
+void dump_text(Tensor x, std::string name) {
     auto fname = name + ".txt";
 
-    fmt::print("Dumping data of {} to {}\n", name, fname);
     auto sizes = x.sizes();
-    fmt::print("{} shape = {}\n", name, sizes);
-
     int numel =
         std::accumulate(sizes.begin(), sizes.end(), 1, std::multiplies<>());
 
@@ -50,6 +40,46 @@ void NetImpl::dump(Tensor x, std::string name) {
         fmt::print(file, "{}\n", f);
     }
     file.close();
+}
+
+void dump_bin(Tensor x, std::string name) {
+    auto fname = name + ".bin";
+
+    auto sizes = x.sizes();
+    int numel =
+        std::accumulate(sizes.begin(), sizes.end(), 1, std::multiplies<>());
+
+    std::ofstream file(fname);
+    for (int i = 0; i < numel; i += 1) {
+        float f = static_cast<float*>(x.data_ptr())[i];
+        int16_t quantized = std::clamp(static_cast<int16_t>(f * std::pow(2, 8)),
+                                       std::numeric_limits<int16_t>::min(),
+                                       std::numeric_limits<int16_t>::max());
+        for (int b = 15; b >= 0; b -= 1) {
+            fmt::print(file, "{}", ((quantized >> b) & 1) ? '1' : '0');
+            if (b % 4 == 0 && b != 0) {
+                fmt::print(file, "_");
+            }
+        }
+        fmt::print(file, "\n");
+    }
+    file.close();
+}
+
+void dump(Tensor x, std::string name) {
+    fmt::print("Dumping data of {} (sizes = {})\n", name, x.sizes());
+    dump_text(x, name);
+    dump_bin(x, name);
+}
+} // namespace
+
+void NetImpl::dump_parameters() {
+    dump(conv1->weight, "conv1.weight");
+    dump(conv1->bias, "conv1.bias");
+    dump(conv2->weight, "conv2.weight");
+    dump(conv2->bias, "conv2.bias");
+    dump(conv3->weight, "conv3.weight");
+    dump(conv3->bias, "conv3.bias");
 }
 
 // value, policy

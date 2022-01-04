@@ -13,3 +13,4 @@ detect_cuda_version.cc
 tmp
 gen
 *.txt
+*.bin

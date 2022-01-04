@@ -17,8 +17,6 @@ class NetImpl : public nn::Module {
   private:
     nn::Conv2d conv1, conv2, conv3;
     nn::Flatten flat;
-
-    void dump(Tensor x, std::string name);
 };
 
 TORCH_MODULE(Net);
