@@ -13,6 +13,8 @@
 #include <torch/nn/options/conv.h>
 #include <torch/nn/options/padding.h>
 
+using namespace torch::indexing;
+
 NetImpl::NetImpl()
     : conv1(nn::Conv2dOptions(1, 20, 3).stride(1)),
       conv2(nn::Conv2dOptions(20, 20, 3).stride(1)),
@@ -79,4 +81,66 @@ Tensor NetImpl::forward(Tensor x, bool print) {
     x = torch::log_softmax(x, -1);
 
     return x;
+}
+
+Tensor NetImpl::manual_forward(Tensor x) {
+    auto padopts = torch::nn::functional::PadFuncOptions({1, 1, 1, 1});
+
+    x = nn::functional::pad(x, padopts);
+
+    std::vector<Tensor> conv1_outs{};
+    for (int i = 0; i < 20; i += 1) {
+        Tensor filter = conv1->weight.index({Slice(i, i + 1), "..."});
+        Tensor bias = conv1->bias.index({i});
+        Tensor conved = nn::functional::conv2d(x, filter);
+        Tensor biased = conved + bias;
+        conv1_outs.push_back(biased);
+    }
+    Tensor conv1_out = torch::relu(torch::cat(conv1_outs));
+
+    fmt::print("after mconv1:\n{}\n", conv1_out);
+    /*******************************************************/
+
+    // 20,1,8,8
+    conv1_out = nn::functional::pad(conv1_out, padopts);
+
+    std::vector<Tensor> conv2_outs{};
+    for (int i = 0; i < 20; i += 1) {
+        Tensor summed = torch::zeros(
+            {1, 1, 6, 6}, torch::TensorOptions().dtype(torch::kFloat32));
+        for (int j = 0; j < 20; j += 1) {
+            Tensor featmap = conv1_out.index({Slice(j, j + 1), "..."});
+            Tensor filter =
+                conv2->weight.index({Slice(i, i + 1), Slice(j, j + 1), "..."});
+            Tensor conved = nn::functional::conv2d(featmap, filter);
+            summed += conved;
+        }
+        Tensor bias = conv2->bias.index({i});
+        Tensor biased = summed + bias;
+        conv2_outs.push_back(biased);
+    }
+    Tensor conv2_out = torch::relu(torch::cat(conv2_outs));
+
+    fmt::print("after mconv2:\n{}\n", conv2_out);
+    /*******************************************************/
+
+    conv2_out = nn::functional::pad(conv2_out, padopts);
+
+    Tensor summed = torch::zeros({1, 1, 6, 6},
+                                 torch::TensorOptions().dtype(torch::kFloat32));
+    for (int i = 0; i < 20; i += 1) {
+        Tensor featmap = conv2_out.index({Slice(i, i + 1), "..."});
+        Tensor filter = conv3->weight.index({Slice(), Slice(i, i + 1), "..."});
+        Tensor conved = nn::functional::conv2d(featmap, filter);
+        summed += conved;
+    }
+    Tensor bias = conv3->bias.index({0});
+    Tensor biased = summed + bias;
+
+    Tensor conv3_out = biased;
+
+    fmt::print("after mconv3:\n{}\n", conv3_out);
+    /*******************************************************/
+
+    return torch::log_softmax(flat(conv3_out), -1);
 }

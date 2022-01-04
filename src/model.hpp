@@ -12,6 +12,7 @@ class NetImpl : public nn::Module {
     Tensor forward(Tensor x, bool print = false);
     // The user MUST call this with data on CPU
     void dump_parameters();
+    Tensor manual_forward(Tensor x);
 
   private:
     nn::Conv2d conv1, conv2, conv3;

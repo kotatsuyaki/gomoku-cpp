@@ -439,6 +439,8 @@ void bench() {
         };
         auto policy = net->forward(
             torch::from_blob(board.data(), {1, 1, 6, 6}, options), true);
+        net->manual_forward(
+            torch::from_blob(board.data(), {1, 1, 6, 6}, options));
 
         fmt::print("Situation:\n");
         show_policy(board);
@@ -459,6 +461,8 @@ void bench() {
         };
         auto policy = net->forward(
             torch::from_blob(board.data(), {1, 1, 6, 6}, options), true);
+        net->manual_forward(
+            torch::from_blob(board.data(), {1, 1, 6, 6}, options));
 
         fmt::print("Situation:\n");
         show_policy(board);
@@ -479,6 +483,8 @@ void bench() {
         };
         auto policy = net->forward(
             torch::from_blob(board.data(), {1, 1, 6, 6}, options), true);
+        net->manual_forward(
+            torch::from_blob(board.data(), {1, 1, 6, 6}, options));
 
         fmt::print("Situation:\n");
         show_policy(board);
@@ -497,6 +503,10 @@ void dump() {
     torch::load(opt, "opt.pt");
     Mcts mcts{};
     net->to(torch::kCPU);
+
+    for (auto [name, p] : net->named_parameters().pairs()) {
+        fmt::print("Parameter {} has {} elements\n", name, torch::numel(p));
+    }
 
     fmt::print("Dumping parameters\n");
     net->dump_parameters();
