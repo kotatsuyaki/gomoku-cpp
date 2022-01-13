@@ -43,6 +43,12 @@ void dump_text(Tensor x, std::string name) {
 }
 
 void dump_bin(Tensor x, std::string name) {
+    float SCALE = 2.5f;
+    if (const char* scale = std::getenv("SCALE")) {
+        fmt::print("Using supplied scale {}\n", scale);
+        SCALE = std::atof(scale);
+    }
+
     auto fname = name + ".bin";
 
     auto sizes = x.sizes();
@@ -52,9 +58,14 @@ void dump_bin(Tensor x, std::string name) {
     std::ofstream file(fname);
     for (int i = 0; i < numel; i += 1) {
         float f = static_cast<float*>(x.data_ptr())[i];
-        int16_t quantized = std::clamp(static_cast<int16_t>(f * std::pow(2, 8)),
-                                       std::numeric_limits<int16_t>::min(),
-                                       std::numeric_limits<int16_t>::max());
+        int16_t quantized = std::clamp(
+            static_cast<int16_t>(std::round(SCALE * f * std::pow(2, 8))),
+            std::numeric_limits<int16_t>::min(),
+            std::numeric_limits<int16_t>::max());
+        if (quantized == std::numeric_limits<int16_t>::min() ||
+            quantized == std::numeric_limits<int16_t>::max()) {
+            fmt::print(stderr, "truncated\n");
+        }
         for (int b = 15; b >= 0; b -= 1) {
             fmt::print(file, "{}", ((quantized >> b) & 1) ? '1' : '0');
             if (b % 4 == 0 && b != 0) {
@@ -75,8 +86,14 @@ void dump(Tensor x, std::string name) {
 
 void NetImpl::dump_parameters() {
     dump(conv1->weight, "conv1.weight");
+    auto conv1_slice0 = conv1->weight.index({Slice(0, 1), "..."});
+    fmt::print("Slice 0 of conv1.weight is {}\n", conv1_slice0);
+
     dump(conv1->bias, "conv1.bias");
     dump(conv2->weight, "conv2.weight");
+    auto conv2_slice00 = conv2->weight.index({Slice(0, 1), Slice(0, 1), "..."});
+    fmt::print("Slice (0, 0) of conv2.weight is {}\n", conv2_slice00);
+
     dump(conv2->bias, "conv2.bias");
     dump(conv3->weight, "conv3.weight");
     dump(conv3->bias, "conv3.bias");
@@ -143,8 +160,13 @@ Tensor NetImpl::manual_forward(Tensor x) {
             Tensor filter =
                 conv2->weight.index({Slice(i, i + 1), Slice(j, j + 1), "..."});
             Tensor conved = nn::functional::conv2d(featmap, filter);
+            fmt::print("l2 inner conv (i, j = {}, {}):\n{}\n", i, j, conved);
+            fmt::print("l2 filter is:\n{}\n", filter);
+            fmt::print("l2 featmap is:\n{}\n", featmap);
             summed += conved;
         }
+        fmt::print("l2 inner conv (i = {}):\n{}\n", i, summed);
+
         Tensor bias = conv2->bias.index({i});
         Tensor biased = summed + bias;
         conv2_outs.push_back(biased);
@@ -162,12 +184,15 @@ Tensor NetImpl::manual_forward(Tensor x) {
         Tensor featmap = conv2_out.index({Slice(i, i + 1), "..."});
         Tensor filter = conv3->weight.index({Slice(), Slice(i, i + 1), "..."});
         Tensor conved = nn::functional::conv2d(featmap, filter);
+        fmt::print("l3 inner conv (i = {}):\n{}\n", i, conved);
+        fmt::print("l3 filter is:\n{}\n", filter);
+        fmt::print("l3 featmap is:\n{}\n", featmap);
         summed += conved;
     }
     Tensor bias = conv3->bias.index({0});
     Tensor biased = summed + bias;
 
-    Tensor conv3_out = biased;
+    Tensor conv3_out = torch::relu(biased);
 
     fmt::print("after mconv3:\n{}\n", conv3_out);
     /*******************************************************/

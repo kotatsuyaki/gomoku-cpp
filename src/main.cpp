@@ -144,22 +144,25 @@ void netgame() {
     State state{};
     Net net{};
     torch::load(net, "net.pt");
-    net->to(torch::kCUDA);
+    net->to(torch::kCPU);
 
     NetQuery nq{net};
 
     while (state.is_ended() == false) {
         auto me = state.get_next();
         if (state.get_age() % 2 == 0) {
-            auto [action, policy] = nq.raw_query(state);
-            state.place(action);
-
-            fmt::print("{} placed stone at {}:\n{}\n", me, action, state);
-        } else {
             int i, j;
             fmt::print("input i and j:\n");
             std::cin >> i >> j;
             Action action(i, j);
+            state.place(action);
+
+            fmt::print("{} placed stone at {}:\n{}\n", me, action, state);
+        } else {
+            auto options = torch::TensorOptions().dtype(torch::kFloat32);
+            net->manual_forward(torch::from_blob(state.canonical().data(),
+                                                 {1, 1, 6, 6}, options));
+            auto [action, policy] = nq.raw_query(state);
             state.place(action);
 
             fmt::print("{} placed stone at {}:\n{}\n", me, action, state);
@@ -325,6 +328,7 @@ void bench() {
     torch::load(net, "net.pt");
     net->to(torch::kCPU);
 
+    /* fmt::print(FGGRN, "Bench example 1\n");
     {
         auto options = torch::TensorOptions().dtype(torch::kFloat32);
         Policy board{
@@ -345,8 +349,9 @@ void bench() {
 
         fmt::print("policy:\n");
         show_policy(policy_from_tensor(policy.exp()));
-    }
+    } */
 
+    fmt::print(FGGRN, "Bench example 2\n");
     {
         auto options = torch::TensorOptions().dtype(torch::kFloat32);
         Policy board{
@@ -369,6 +374,7 @@ void bench() {
         show_policy(policy_from_tensor(policy.exp()));
     }
 
+    /* fmt::print(FGGRN, "Bench example 3\n");
     {
         auto options = torch::TensorOptions().dtype(torch::kFloat32);
         Policy board{
@@ -389,7 +395,7 @@ void bench() {
 
         fmt::print("policy:\n");
         show_policy(policy_from_tensor(policy.exp()));
-    }
+    } */
 }
 
 void dump() {
